@@ -4,12 +4,13 @@ LDFLAGS = -lOpenCL -lm -I/usr/local/cuda/include -g -pg
 LDTEST = -lfftw3 -lOpenCL -lTopeFFT -L/opt/topefft -g -pg
 CUDAFLAGS = -I/usr/local/cuda/include -L/usr/local/cuda/lib64 -lcuda -lcudart -lcufft
 
-REQ = src/util.c src/fft1d.c src/fft3d.c src/fft2d.c src/checkers.c 
-OBJ = obj/util.o obj/fft1d.o obj/fft3d.o obj/fft2d.o obj/checkers.o
+REQ = src/util.c src/fft1d.c src/fft3d.c src/fft2d.c src/checkers.c src/fft1d_mix.c
+OBJ = obj/util.o obj/fft1d.o obj/fft3d.o obj/fft2d.o obj/checkers.o obj/fft1d_mix.o
 
 topeFFT: $(REQ)
 	$(CC) $(CFLAGS) -c -o obj/util.o src/util.c $(LDFLAGS) 
 	$(CC) $(CFLAGS) -c -o obj/fft1d.o src/fft1d.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -c -o obj/fft1d_mix.o src/fft1d_mix.c $(LDFLAGS)
 	$(CC) $(CFLAGS) -c -o obj/fft2d.o src/fft2d.c $(LDFLAGS)
 	$(CC) $(CFLAGS) -c -o obj/fft3d.o src/fft3d.c $(LDFLAGS)
 	$(CC) $(CFLAGS) -c -o obj/checkers.o src/checkers.c $(LDFLAGS)
@@ -19,6 +20,7 @@ topeFFT: $(REQ)
 
 tests:
 	$(CC) $(CFLAGS) -lrt $(CUDAFLAGS) test/1d.c -o bin/1d $(LDTEST)
+	$(CC) $(CFLAGS) -lrt $(CUDAFLAGS) test/1d_mix.c -o bin/1d_mix $(LDTEST)
 	$(CC) $(CFLAGS) -lrt $(CUDAFLAGS) test/2d.c -o bin/2d $(LDTEST) 
 	$(CC) $(CFLAGS) -lrt $(CUDAFLAGS) test/3d.c -o bin/3d $(LDTEST) 
 
