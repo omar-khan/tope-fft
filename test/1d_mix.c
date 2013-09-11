@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
 	#endif
 	#endif
 	
-	tope1DDestroy(&framework, &plan);
+	Xtope1DDestroy(&framework, &plan);
 	#endif
 
 	#if 1 /* FFTW Starts */

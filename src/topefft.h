@@ -12,17 +12,16 @@
 
 struct XtopePlan1D {
 	int x;
-	int dim_x[2];			
-	int log;		
-	int type;		
-	int radix[2];
-	cl_kernel kernel;		// butterfly kernel
+	int *log;
+	int type;				// C2C/R2C etc.	
+	int *radix;
+	cl_kernel *kernel;		// butterfly kernel
 	cl_kernel kernel_bit;	// bit reversal kernel
 	cl_kernel kernel_swap;	// swapper kernel
 	cl_kernel kernel_twid;	// twiddle calculator
 	cl_kernel kernel_div;
 	cl_mem data;			// main data
-	cl_mem bitrev;			// bitreversal data
+	cl_mem *bitrev;			// bitreversal data
 	cl_mem twiddle;			// twiddles
 	cl_mem scratch;   		// Scratch space
 	size_t dataSize;		// size of data

@@ -15,7 +15,7 @@ topeFFT: $(REQ)
 	$(CC) $(CFLAGS) -c -o obj/fft3d.o src/fft3d.c $(LDFLAGS)
 	$(CC) $(CFLAGS) -c -o obj/checkers.o src/checkers.c $(LDFLAGS)
 	$(CC) -shared -Wl,-soname,libTopeFFT.so.1 -o lib/libTopeFFT.so.1.0 $(OBJ)
-	$(CC) $(CFLAGS) -o bin/topeFFT_cc src/topeFFT_cc.c $(LDFLAGS)
+	#$(CC) $(CFLAGS) -o bin/topeFFT_cc src/topeFFT_cc.c $(LDFLAGS)
 	#bin/topeFFT_cc
 
 tests:

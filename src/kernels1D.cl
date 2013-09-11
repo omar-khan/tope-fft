@@ -419,6 +419,13 @@ __kernel void DIT8C2C(	__global double *data,
 	#endif
 }
 
+__kernel void DIT2C2CM(	__global double *data,
+						const int facX, const int facY,
+						unsigned int stage,
+						unsigned int dir) 
+{
+}
+
 __kernel void DIT2C2C(	__global double *data, 
 						__global double2 *twiddle,
 						const int size, unsigned int stage,
