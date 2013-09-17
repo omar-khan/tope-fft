@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
 
 	struct XtopePlan1D plan;
 	Xtope1DPlanInit(&framework, &plan, N, C2C, data);
-	//tope1DExec(&framework, &plan, data, FORWARD);
+	Xtope1DExec(&framework, &plan, data, FORWARD);
 
 	#if 0 // Start Inverse
 	tope1DExec(&framework, &plan, data, INVERSE);
@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
 	#endif
 	#endif
 	
-	Xtope1DDestroy(&framework, &plan);
+	//Xtope1DDestroy(&framework, &plan);
 	#endif
 
 	#if 1 /* FFTW Starts */
@@ -148,8 +148,8 @@ int main(int argc, char *argv[])
 	
 	#if 1 // Show Output
 	for (i = 0; i < N; i++) {
-		//printf("%lf\t%lf\n", data[2*i], data[2*i+1]); 	// Tope
-		//printf("%lf:%lf\t", out[i][0], out[i][1]); 		// FFTW
+		printf("%lf\t%lf\n", data[2*i], data[2*i+1]); 	// Tope
+		printf("%lf:%lf\t", out[i][0], out[i][1]); 		// FFTW
 		//printf("%lf:%lf\n", dataLoca[i].x, dataLoca[i].y); // cuFFT
 	}
 	#endif

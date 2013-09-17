@@ -9,8 +9,72 @@
 #include "topefft.h"
 #endif
 
+void Xtope1DExecMix( struct topeFFT *f,
+					 struct XtopePlan1D *t,
+					 int type)
+{
+	f->error = clSetKernelArg(t->kernel[type], 5, sizeof(int), (void*)&type);
+	$CHECKERROR
+	f->error = clSetKernelArg(t->kernel_swap, 5, sizeof(int), (void*)&type);
+	$CHECKERROR
+
+	/* Run Swapper */	
+	t->globalSize[0] = t->radix[0];
+	t->globalSize[1] = t->radix[1];
+	t->localSize[0] = 1;//t->x < 64 ? t->x/2 : 64;
+	t->localSize[1] = 1;
+	f->error = clEnqueueNDRangeKernel(	f->command_queue, t->kernel_swap,
+										t->dim, NULL, t->globalSize,
+										t->localSize, 0, NULL, &f->event);
+	$CHECKERROR
+	clFinish(f->command_queue);
+	t->totalPreKernel += profileThis(f->event);
+
+	/* Run Butterflies */
+	t->globalSize[1] = t->radix[1];
+	t->localSize[1] = 1;
+	if (t->radix[0]==8) {
+		t->globalSize[0] = t->radix[0]/8;
+		t->localSize[0] = t->radix[0]/8 < 64 ? t->radix[0]/8 : 64;
+	}
+	else if(t->radix[0]==4) {
+		t->globalSize[0] = t->radix[0]/4;
+		t->localSize[0] = t->radix[0]/4 < 128 ? t->radix[0]/4 : 128;
+	}
+	else if(t->radix[0]==2) {
+		t->globalSize[0] = t->radix[0]/2;
+		t->localSize[0] = t->radix[0]/2 < 128 ? t->radix[0]/2 : 128;
+	}
+
+	int s;
+	for (s = 1; s <= t->log[type]; s++) {
+		f->error = clSetKernelArg(t->kernel[type], 3, sizeof(int), (void*)&s);
+		$CHECKERROR
+
+		f->error = clEnqueueNDRangeKernel(	f->command_queue, t->kernel[type],
+											t->dim, NULL, t->globalSize,
+											t->localSize, 0, NULL, &f->event);
+		clEnqueueNDRangeChecker(&f->error);
+		$CHECKERROR
+		clFinish(f->command_queue);
+		t->totalKernel += profileThis(f->event);
+	
+		#if 0 // Debug Code
+		int i;
+		f->error = clEnqueueReadBuffer(	f->command_queue, t->data,
+									CL_TRUE, 0, t->dataSize, d, 
+									0, NULL, &f->event);
+		$CHECKERROR
+		for (i = 0; i < t->x; i++) {
+			printf("%lf:%lf\n", d[2*i], d[2*i+1]);
+		}
+		#endif
+	}
+
+}
+
 void Xtope1DExec(	struct topeFFT *f,
-					struct topePlan1D *t, 
+					struct XtopePlan1D *t, 
 					double *d, int dir) 
 {
 	if (t->x == 2) {			// special case size 2 input
@@ -27,31 +91,54 @@ void Xtope1DExec(	struct topeFFT *f,
 		return;
 	}
 
-	if (t->radix > 0) {
-		/* Set Direction of Transform */
-		f->error = clSetKernelArg(t->kernel, 4, sizeof(int), (void*)&dir);
-		$CHECKERROR
-
+	double re;
+	
+	if (t->dim == 1) {
+	
 		/* Run Swapper */	
 		f->error = clSetKernelArg(t->kernel_swap,0,sizeof(cl_mem), (void*)&t->data);
 		$CHECKERROR
-		
 		t->globalSize[0] = t->x;
 		t->localSize[0] = t->x < 128 ? t->x/2 : 128;
 		f->error = clEnqueueNDRangeKernel(	f->command_queue, t->kernel_swap,
 											t->dim, NULL, t->globalSize,
 											t->localSize, 0, NULL, &f->event);
-
-		printf("%d\n", t->radix);
-
 		$CHECKERROR
 		clFinish(f->command_queue);
 		t->totalPreKernel += profileThis(f->event);
-	}
-	else {
+
 		/* Set Direction of Transform */
-		f->error = clSetKernelArg(t->kernel, 3, sizeof(int), (void*)&dir);
+		f->error = clSetKernelArg(t->kernel[0], 4, sizeof(int), (void*)&dir);
 		$CHECKERROR
+
+		if (modf(log2(t->x),&re) == 0) {
+		}
+		else if (modf(log2(t->x)/log2(3),&re) == 0) {
+		}
+		else if (modf(log2(t->x)/log2(5),&re) == 0) {
+		}
+		else if (modf(log2(t->x)/log2(7),&re) == 0) {
+		}
+	}
+	else if (t->dim == 2) {
+	
+		if (t->radix[1] == -1) {
+			/* Set Direction of Transform */
+			f->error = clSetKernelArg(t->kernel[0], 3, sizeof(int), (void*)&dir);
+			$CHECKERROR
+		}
+		else { // Mix Code
+			/* Set Direction of Transform */
+			int d;
+			for (d = 0; d < t->dim; d++) {
+				f->error = clSetKernelArg(t->kernel[d], 4, sizeof(int), (void*)&dir);
+				$CHECKERROR
+			}
+			Xtope1DExecMix(f,t,0); // X
+			
+			//Xtope1DExecMix(f,t,1); // Y
+		}
+
 	}
 
 	#if 0 // Debug Code
@@ -65,6 +152,7 @@ void Xtope1DExec(	struct topeFFT *f,
 	exit(0);
 	#endif
 
+	#if 0 // Non-Mix ... Enable Later ... don't forget
 	/* Run Butterflies */
 	if(t->radix==8) {
 		t->globalSize[0] = (t->x)/8;
@@ -143,6 +231,7 @@ void Xtope1DExec(	struct topeFFT *f,
 	$CHECKERROR
 	clFinish(f->command_queue);
 	t->totalMemory += profileThis(f->event);
+	#endif
 }
 
 void Xtope1dPlanInitMix(	struct topeFFT *f,
@@ -156,15 +245,13 @@ void Xtope1dPlanInitMix(	struct topeFFT *f,
 		switch(t->radix[ii]) 
 		{
 			case 2:	t->kernel[ii] = clCreateKernel(	f->program1D, 
-									"DIT2C2CM", &f->error);
-					$CHECKERROR 
-					break;
-			#if 0
+													"DIT2C2CM", &f->error);
+					$CHECKERROR break;
 			case 3:	t->kernel[ii] = clCreateKernel(	f->program1D,
-													"DIT3C2C", &f->error);
+													"DIT3C2CM", &f->error);
 					$CHECKERROR break;
 			case 4:	t->kernel[ii] = clCreateKernel(	f->program1D,
-													"DIT4C2C", &f->error);
+													"DIT4C2CM", &f->error);
 					$CHECKERROR break;
 			case 5:	t->kernel[ii] = clCreateKernel(	f->program1D,
 													"DIT5C2C", &f->error);
@@ -175,7 +262,6 @@ void Xtope1dPlanInitMix(	struct topeFFT *f,
 			case 8:	t->kernel[ii] = clCreateKernel(	f->program1D,
 													"DIT8C2C", &f->error);
 					$CHECKERROR break;
-			#endif
 		}
 		f->error = clSetKernelArg(	t->kernel[ii], 0, sizeof(cl_mem), 
 									(void*)&t->data);
@@ -187,7 +273,15 @@ void Xtope1dPlanInitMix(	struct topeFFT *f,
 									(void*)&t->radix[1]);
 		$CHECKERROR
 	}
-
+	
+	t->kernel_mulTW = clCreateKernel( f->program1D, "kernelMUL", &f->error);
+	$CHECKERROR
+	f->error = clSetKernelArg(t->kernel_mulTW, 0, sizeof(cl_mem), (void*)&t->data);
+	$CHECKERROR
+	f->error = clSetKernelArg(t->kernel_mulTW, 1, sizeof(int), (void*)&t->radix[0]);
+	$CHECKERROR
+	f->error = clSetKernelArg(t->kernel_mulTW, 2, sizeof(int), (void*)&t->radix[1]);
+	$CHECKERROR
 }
 
 void Xtope1DPlanInitDFT( 	struct topeFFT *f,
@@ -363,7 +457,16 @@ void Xtope1DPlanInit(struct topeFFT *f,
 			t->radix[0] = 8;
 		}
 		else if ( t->log[0] % 2 == 0) { 	// Is Radix 4
+			
 			t->radix[0] = 4;
+
+			t->log = realloc(t->log,sizeof(int)*t->dim);
+			t->radix = realloc(t->radix,sizeof(int)*t->dim);
+
+			t->radix[0] = 4;
+			t->radix[1] = 4;
+			t->dim = 2;
+
 		}
 		else if (x % 2 == 0) { 				// Is Radix 2
 			t->radix[0] = 2;
@@ -502,6 +605,7 @@ void Xtope1DPlanInit(struct topeFFT *f,
 								(void*)&t->x); $CHECKERROR
 
 	/* Send Rest of Setup to Right Functions*/
+	#if 0
 	if (modf(log2(x),&re) == 0 ) {  			// Is Base 2 Radices
 		Xtope1DPlanInitBase2(f,t,x);
 	}
@@ -511,12 +615,15 @@ void Xtope1DPlanInit(struct topeFFT *f,
 	}
 	else {
 		if (t->radix[1] > 1) {					// Is Mix Radix
+		#endif
 			Xtope1dPlanInitMix(f,t,x);
+			#if 0
 		}
 		else if (t->radix[1] == -1) {			// Is DFT
 			Xtope1DPlanInitDFT(f,t,x);
 		}
 	}
+	#endif
 
 	// Deprecated following if structures
 	#if 0
@@ -547,10 +654,12 @@ void Xtope1DPlanInit(struct topeFFT *f,
 	 * Note: These adjustments are required for running the precise number of
 	 * stages 
 	 * */
+	#if 0
 	if (modf(log2(x),&re) == 0 ) {  // Is Base 2 Radices
 		if (t->radix[0] == 8) 	t->log[0] = t->log[0]/log2(8);
 		if (t->radix[0] == 4) 	t->log[0] = t->log[0]/log2(4);
 	}
+	#endif
 }
 
 void Xtope1DDestroy(	struct topeFFT *f,

@@ -422,7 +422,225 @@ __kernel void DIT8C2C(	__global double *data,
 __kernel void DIT2C2CM(	__global double *data,
 						const int facX, const int facY,
 						unsigned int stage,
-						unsigned int dir) 
+						unsigned int dir,
+						unsigned int type) 
+{
+	#if 0
+	int idX = get_global_id(0);
+	int idY = get_global_id(1);
+
+	int BASE 	= 0;
+	int STRIDE 	= 1;
+
+	#if 1
+	int powMaxLvl = 11;
+	int powLevels = stage / powMaxLvl;
+	int powRemain = stage % powMaxLvl;
+	int powX = 1;
+	int powXm1 = 1;
+	int xx;
+	for (xx = 0; xx < powLevels; xx++) {
+		powX *= pow(2.0f,powMaxLvl);
+	}
+	powX *= pow(2.0f,powRemain);
+	powXm1 = powX/2;
+	#endif
+	#if 0
+	int powX = exp2(log2(2.)*stage);
+	int powXm1 = powX/2;
+	#endif
+
+	int yIndex, kIndex, clipStart, clipEnd, coeffUse;
+	double2 clSet1;
+	
+	switch(type)
+	{
+		case 1: BASE 		= idY*x; 
+				yIndex 		= idX / powXm1;
+				kIndex 		= idX % powXm1;	
+				coeffUse 	= kIndex * (x / powX);
+				break;
+		case 2: BASE 		= idX; 
+				STRIDE 		= x; 
+				yIndex 		= idY / powXm1;
+				kIndex 		= idY % powXm1;
+				coeffUse 	= kIndex * (y / powX);
+				break;
+	}
+
+	clipStart 	= 2 * (BASE+STRIDE*(kIndex + yIndex * powX));
+	clipEnd 	= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + powXm1));
+
+	clSet1.x 	= cos(two*CLPI*(coeffUse/2)/xR);
+	clSet1.y 	= sin(two*CLPI*(coeffUse/2)/xR);
+
+	double4 LOC = (double4)(	data[clipStart + 0],	data[clipStart + 1],
+								data[clipEnd + 0],		data[clipEnd + 1]);
+	double4 FIN = (double4)(	LOC.x + LOC.z * clSet1.x - LOC.w * clSet1.y,
+								LOC.y + LOC.w * clSet1.x + LOC.z * clSet1.y,
+								LOC.x - LOC.z * clSet1.x + LOC.w * clSet1.y,
+								LOC.y - LOC.w * clSet1.x - LOC.z * clSet1.y);
+
+	data[clipStart + 0] = FIN.x;
+	data[clipStart + 1] = FIN.y;
+	data[clipEnd + 0] 	= FIN.z;
+	data[clipEnd + 1] 	= FIN.w;
+	#endif
+}
+
+__kernel void DIT3C2CM(	__global double *data,
+						const int facX, const int facY,
+						unsigned int stage,
+						unsigned int dir,
+						unsigned int type) 
+{
+}
+
+__kernel void DIT4C2CM(	__global double *data,
+						const int x, const int y,
+						unsigned int stage,
+						unsigned int dir,
+						unsigned int type) 
+{
+	int idX = get_global_id(0);
+	int idY = get_global_id(1);
+
+	#if 1
+	int powMaxLvl = 7;
+	int powLevels = stage / powMaxLvl;
+	int powRemain = stage % powMaxLvl;
+	int powX = 1;
+	int powXm1 = 1;
+	int xx;
+	for (xx = 0; xx < powLevels; xx++) {
+		powX *= pow(4.0f,powMaxLvl);
+	}
+	powX *= pow(4.0f,powRemain);
+	powXm1 = powX/4;
+	#endif
+	#if 0
+	int powX = exp2(log2(4.)*stage);
+	int powXm1 = powX/4;
+	#endif
+
+	int clipOne, clipTwo, clipThr, clipFou, yIndex, kIndex, red, coeffUse;
+	
+	int BASE 	= 0;
+	int STRIDE 	= 1;
+
+	switch(type)
+	{
+		case 1: BASE 		= idY*x; 
+				yIndex 		= idX / powXm1;
+				kIndex 		= idX % powXm1;
+				red 		= x / 4;	
+				coeffUse 	= kIndex * (x / powX);
+				break;
+		case 2: BASE 		= idX; 
+				STRIDE 		= x; 
+				yIndex 		= idY / powXm1;
+				kIndex 		= idY % powXm1;
+				red 		= y / 4;
+				coeffUse 	= kIndex * (y / powX);
+				break;
+	}
+
+	clipOne 	= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 0 * powXm1));
+	clipTwo 	= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 1 * powXm1));
+	clipThr		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 2 * powXm1));
+	clipFou		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 3 * powXm1));
+
+	double8 SIGA = (double8)(	data[clipOne+0],	data[clipOne+1],
+								data[clipTwo+0],	data[clipTwo+1],
+								data[clipThr+0],	data[clipThr+1],
+								data[clipFou+0],	data[clipFou+1]	);
+	
+	int quad, buad;
+	double2 TEMPC, clSet1;
+
+	double2 clSet2, clSet3;
+	if (kIndex != 0) {
+		clSet2.x =  cos(2.*CLPT*kIndex/powX);
+		clSet2.y = -sin(2.*CLPT*kIndex/powX);
+		TEMPC.x = SIGA.s2 * clSet2.x - SIGA.s3 * clSet2.y;
+		TEMPC.y = SIGA.s3 * clSet2.x + SIGA.s2 * clSet2.y;
+		SIGA.s2 = TEMPC.x;
+		SIGA.s3 = TEMPC.y;
+		clSet1.x = cos(CLPT*kIndex/powX);
+		clSet1.y = -sin(CLPT*kIndex/powX);
+		TEMPC.x = SIGA.s4 * clSet1.x - SIGA.s5 * clSet1.y;
+		TEMPC.y = SIGA.s5 * clSet1.x + SIGA.s4 * clSet1.y;
+		SIGA.s4 = TEMPC.x;
+		SIGA.s5 = TEMPC.y;
+		clSet3.x = cos(3.*CLPT*kIndex/powX);
+		clSet3.y = -sin(3.*CLPT*kIndex/powX);
+		TEMPC.x = SIGA.s6 * clSet3.x - SIGA.s7 * clSet3.y;
+		TEMPC.y = SIGA.s7 * clSet3.x + SIGA.s6 * clSet3.y;
+		SIGA.s6 = TEMPC.x;
+		SIGA.s7 = TEMPC.y;
+	}	
+	
+	if (dir == 1) {
+		data[clipOne+0] = SIGA.s0 + SIGA.s2 + SIGA.s4 + SIGA.s6;
+		data[clipOne+1] = SIGA.s1 + SIGA.s3 + SIGA.s5 + SIGA.s7;
+		data[clipTwo+0] = SIGA.s0 - SIGA.s2 + SIGA.s5 - SIGA.s7;
+		data[clipTwo+1] = SIGA.s1 - SIGA.s3 - SIGA.s4 + SIGA.s6;
+		data[clipThr+0] = SIGA.s0 + SIGA.s2 - SIGA.s4 - SIGA.s6;
+		data[clipThr+1] = SIGA.s1 + SIGA.s3 - SIGA.s5 - SIGA.s7;
+		data[clipFou+0] = SIGA.s0 - SIGA.s2 - SIGA.s5 + SIGA.s7;
+		data[clipFou+1] = SIGA.s1 - SIGA.s3 + SIGA.s4 - SIGA.s6;
+	}
+	else if (dir == 0) {
+		data[clipOne+0] = SIGA.s0 + SIGA.s2 + SIGA.s4 + SIGA.s6;
+		data[clipOne+1] = SIGA.s1 + SIGA.s3 + SIGA.s5 + SIGA.s7;
+		data[clipTwo+0] = SIGA.s0 - SIGA.s2 - SIGA.s5 + SIGA.s7;
+		data[clipTwo+1] = SIGA.s1 - SIGA.s3 + SIGA.s4 - SIGA.s6;
+		data[clipThr+0] = SIGA.s0 + SIGA.s2 - SIGA.s4 - SIGA.s6;
+		data[clipThr+1] = SIGA.s1 + SIGA.s3 - SIGA.s5 - SIGA.s7;
+		data[clipFou+0] = SIGA.s0 - SIGA.s2 + SIGA.s5 - SIGA.s7;
+		data[clipFou+1] = SIGA.s1 - SIGA.s3 - SIGA.s4 + SIGA.s6;
+	}
+
+	#if 1
+	data[clipOne+0] = 420;
+	data[clipOne+1] = 420;
+	data[clipTwo+0] = clSet2.x;
+	data[clipTwo+1] = clSet2.y;
+	data[clipThr+0] = clSet1.x;
+	data[clipThr+1] = clSet1.y;
+	data[clipFou+0] = clSet3.x;
+	data[clipFou+1] = clSet3.y;
+	#endif
+}
+
+__kernel void DIT5C2CM(	__global double *data,
+						const int facX, const int facY,
+						unsigned int stage,
+						unsigned int dir,
+						unsigned int type) 
+{
+}
+
+__kernel void DIT7C2CM(	__global double *data,
+						const int facX, const int facY,
+						unsigned int stage,
+						unsigned int dir,
+						unsigned int type) 
+{
+}
+
+__kernel void DIT8C2CM(	__global double *data,
+						const int facX, const int facY,
+						unsigned int stage,
+						unsigned int dir,
+						unsigned int type) 
+{
+
+
+}
+
+__kernel void kernelMUL( __global double *data,
+						const int facX, const int facY)
 {
 }
 

@@ -16,6 +16,7 @@ struct XtopePlan1D {
 	int type;				// C2C/R2C etc.	
 	int *radix;
 	cl_kernel *kernel;		// butterfly kernel
+	cl_kernel kernel_mulTW; // Used by Mix Kernel for multiplying with W
 	cl_kernel kernel_bit;	// bit reversal kernel
 	cl_kernel kernel_swap;	// swapper kernel
 	cl_kernel kernel_twid;	// twiddle calculator
