@@ -18,11 +18,20 @@ void Xtope1DExecMix( struct topeFFT *f,
 	f->error = clSetKernelArg(t->kernel_swap, 5, sizeof(int), (void*)&type);
 	$CHECKERROR
 
-	/* Run Swapper */	
-	t->globalSize[0] = t->radix[0];
-	t->globalSize[1] = t->radix[1];
-	t->localSize[0] = 1;//t->x < 64 ? t->x/2 : 64;
-	t->localSize[1] = 1;
+	/* Run Swapper */
+	switch(type)
+	{
+		case 0:		t->globalSize[0] = t->radix[0];
+					t->globalSize[1] = t->radix[1];
+					t->localSize[0] = 1;//t->radix[0] < 64 ? t->radix[0]/2 : 64;
+					t->localSize[1] = 1;
+					break;
+		case 1: 	t->globalSize[0] = t->radix[0];
+					t->globalSize[1] = t->radix[1];
+					t->localSize[0] = 1;
+					t->localSize[1] = 1;//t->radix[1] < 64 ? t->radix[1]/2 : 64;
+					break;
+	}
 	f->error = clEnqueueNDRangeKernel(	f->command_queue, t->kernel_swap,
 										t->dim, NULL, t->globalSize,
 										t->localSize, 0, NULL, &f->event);
@@ -30,20 +39,54 @@ void Xtope1DExecMix( struct topeFFT *f,
 	clFinish(f->command_queue);
 	t->totalPreKernel += profileThis(f->event);
 
+	#if 1 // Debug Code
+	int i;
+	double *d = malloc(sizeof(double)*2*t->x);
+	f->error = clEnqueueReadBuffer(	f->command_queue, t->data,
+								CL_TRUE, 0, t->dataSize, d, 
+								0, NULL, &f->event);
+	$CHECKERROR
+	for (i = 0; i < t->x; i++) {
+		printf("%lf:%lf\n", d[2*i], d[2*i+1]);
+	}
+	exit(0);
+	#endif
+
 	/* Run Butterflies */
-	t->globalSize[1] = t->radix[1];
-	t->localSize[1] = 1;
-	if (t->radix[0]==8) {
-		t->globalSize[0] = t->radix[0]/8;
-		t->localSize[0] = t->radix[0]/8 < 64 ? t->radix[0]/8 : 64;
-	}
-	else if(t->radix[0]==4) {
-		t->globalSize[0] = t->radix[0]/4;
-		t->localSize[0] = t->radix[0]/4 < 128 ? t->radix[0]/4 : 128;
-	}
-	else if(t->radix[0]==2) {
-		t->globalSize[0] = t->radix[0]/2;
-		t->localSize[0] = t->radix[0]/2 < 128 ? t->radix[0]/2 : 128;
+	switch(type)
+	{
+		case 0:
+			t->globalSize[1] = t->radix[1];
+			t->localSize[1] = 1;
+			if (t->radix[0]==8) {
+				t->globalSize[0] = t->radix[0]/8;
+				t->localSize[0] = t->radix[0]/8 < 64 ? t->radix[0]/8 : 64;
+			}
+			else if(t->radix[0]==4) {
+				t->globalSize[0] = t->radix[0]/4;
+				t->localSize[0] = t->radix[0]/4 < 128 ? t->radix[0]/4 : 128;
+			}
+			else if(t->radix[0]==2) {
+				t->globalSize[0] = t->radix[0]/2;
+				t->localSize[0] = t->radix[0]/2 < 128 ? t->radix[0]/2 : 128;
+			}
+			break;
+		case 1:
+			t->globalSize[0] = t->radix[0];
+			t->localSize[0] = 1;
+			if (t->radix[1]==8) {
+				t->globalSize[1] = t->radix[1]/8;
+				t->localSize[1] = t->radix[1]/8 < 128 ? t->radix[1]/8 : 128;
+			}
+			else if(t->radix[1]==4) {
+				t->globalSize[1] = t->radix[1]/4;
+				t->localSize[1] = t->radix[1]/4 < 128 ? t->radix[1]/4 : 128;
+			}
+			else if(t->radix[1]==2) {
+				t->globalSize[1] = t->radix[1]/2;
+				t->localSize[1] = t->radix[1]/2 < 128 ? t->radix[1]/2 : 128;
+			}
+			break;
 	}
 
 	int s;
@@ -54,11 +97,10 @@ void Xtope1DExecMix( struct topeFFT *f,
 		f->error = clEnqueueNDRangeKernel(	f->command_queue, t->kernel[type],
 											t->dim, NULL, t->globalSize,
 											t->localSize, 0, NULL, &f->event);
-		clEnqueueNDRangeChecker(&f->error);
 		$CHECKERROR
 		clFinish(f->command_queue);
 		t->totalKernel += profileThis(f->event);
-	
+
 		#if 0 // Debug Code
 		int i;
 		f->error = clEnqueueReadBuffer(	f->command_queue, t->data,
@@ -134,11 +176,22 @@ void Xtope1DExec(	struct topeFFT *f,
 				f->error = clSetKernelArg(t->kernel[d], 4, sizeof(int), (void*)&dir);
 				$CHECKERROR
 			}
-			Xtope1DExecMix(f,t,0); // X
-			
-			//Xtope1DExecMix(f,t,1); // Y
-		}
+			Xtope1DExecMix(f,t,0);
 
+			#if 0
+			t->globalSize[0] = t->radix[0];
+			t->localSize[0]  = t->radix[1];
+
+			f->error = clEnqueueNDRangeKernel ( f->command_queue, t->kernel_mulTW,
+												t->dim, NULL, t->globalSize,
+												t->localSize, 0, NULL, &f->event);
+			$CHECKERROR
+			clFinish(f->command_queue);
+			t->totalKernel += profileThis(f->event);
+
+			Xtope1DExecMix(f,t,0); // X
+			#endif
+		}
 	}
 
 	#if 0 // Debug Code
@@ -223,15 +276,15 @@ void Xtope1DExec(	struct topeFFT *f,
 											&f->event);
 		$CHECKERROR
 	}
+	#endif
 
 	/* Read Data Again */
-	f->error = clEnqueueReadBuffer(	f->command_queue, t->scratch,
+	f->error = clEnqueueReadBuffer(	f->command_queue, t->data,
 									CL_TRUE, 0, t->dataSize, d, 
 									0, NULL, &f->event);
 	$CHECKERROR
 	clFinish(f->command_queue);
 	t->totalMemory += profileThis(f->event);
-	#endif
 }
 
 void Xtope1dPlanInitMix(	struct topeFFT *f,
@@ -274,6 +327,7 @@ void Xtope1dPlanInitMix(	struct topeFFT *f,
 		$CHECKERROR
 	}
 	
+	/* Multiplication Kernel */
 	t->kernel_mulTW = clCreateKernel( f->program1D, "kernelMUL", &f->error);
 	$CHECKERROR
 	f->error = clSetKernelArg(t->kernel_mulTW, 0, sizeof(cl_mem), (void*)&t->data);
@@ -282,6 +336,38 @@ void Xtope1dPlanInitMix(	struct topeFFT *f,
 	$CHECKERROR
 	f->error = clSetKernelArg(t->kernel_mulTW, 2, sizeof(int), (void*)&t->radix[1]);
 	$CHECKERROR
+	
+	/* Bit Reversal */
+	t->kernel_bit = clCreateKernel(	f->program1D, "reverse2", &f->error);
+	$CHECKERROR
+
+	for (ii = 0; ii < t->dim; ii++) {
+		f->error = clSetKernelArg(	t->kernel_bit,0,sizeof(cl_mem), 
+									(void*)&t->bitrev[ii]); $CHECKERROR
+		f->error = clSetKernelArg(	t->kernel_bit,1,sizeof(int), 
+									(void*)&t->log[ii]);	$CHECKERROR
+		t->globalSize[0] = t->radix[ii]/2;
+		t->localSize[0] = t->radix[ii]/2 < 512 ? t->radix[ii]/4 : 256/2;
+		f->error = clEnqueueNDRangeKernel(	f->command_queue, t->kernel_bit,
+											1, NULL, t->globalSize, // t->dim = 1
+											t->localSize, 0, NULL, &f->event);
+		$CHECKERROR
+		clFinish(f->command_queue);
+		t->totalPreKernel += profileThis(f->event);
+		
+		#if 0 // Debug Code
+		int *bit = malloc(sizeof(int)*t->radix[ii]);
+		f->error = clEnqueueReadBuffer( f->command_queue, t->bitrev[ii],
+										CL_TRUE, 0, sizeof(int)*t->radix[ii], bit,
+										0, NULL, NULL);
+		$CHECKERROR
+		int iii;
+		for (iii = 0; iii < t->radix[ii]; iii++) {
+			printf("%d\n", bit[iii]);	
+		}
+		printf("----\n");
+		#endif
+	}
 }
 
 void Xtope1DPlanInitDFT( 	struct topeFFT *f,
@@ -359,14 +445,15 @@ void Xtope1DPlanInitDFT( 	struct topeFFT *f,
 								NULL, &f->error); 			$CHECKERROR
 
 	/* Kernel Setup */
-	t->kernel = clCreateKernel(f->program1D, "DFT", &f->error);
+	t->kernel = malloc(sizeof(cl_kernel));
+	t->kernel[0] = clCreateKernel(f->program1D, "DFT", &f->error);
 	$CHECKERROR
 
-	f->error = clSetKernelArg(t->kernel, 0, sizeof(cl_mem), (void*)&t->data);
+	f->error = clSetKernelArg(t->kernel[0], 0, sizeof(cl_mem), (void*)&t->data);
 	$CHECKERROR
-	f->error = clSetKernelArg(t->kernel, 1, sizeof(cl_mem), (void*)&t->scratch);
+	f->error = clSetKernelArg(t->kernel[0], 1, sizeof(cl_mem), (void*)&t->scratch);
 	$CHECKERROR
-	f->error = clSetKernelArg(t->kernel, 2, sizeof(int), (void*)&t->x);
+	f->error = clSetKernelArg(t->kernel[0], 2, sizeof(int), (void*)&t->x);
 	$CHECKERROR
 }
 
@@ -397,20 +484,21 @@ void Xtope1DPlanInitBase2(	struct topeFFT *f,
 	t->totalPreKernel += profileThis(f->event);
 
 	/* Kernel Setup */
+	t->kernel = malloc(sizeof(cl_kernel));
 	switch(t->radix[0])
 	{
-		case 2:	t->kernel = clCreateKernel(f->program1D, "DIT2C2C", &f->error);
+		case 2:	t->kernel[0] = clCreateKernel(f->program1D, "DIT2C2C", &f->error);
 				break;
-		case 4:	t->kernel = clCreateKernel(f->program1D, "DIT4C2C", &f->error);
+		case 4:	t->kernel[0] = clCreateKernel(f->program1D, "DIT4C2C", &f->error);
 				break;
-		case 8:	t->kernel = clCreateKernel(f->program1D, "DIT8C2C", &f->error);
+		case 8:	t->kernel[0] = clCreateKernel(f->program1D, "DIT8C2C", &f->error);
 				break;
 	}
-	f->error = clSetKernelArg(t->kernel, 0, sizeof(cl_mem), (void*)&t->data);
+	f->error = clSetKernelArg(t->kernel[0], 0, sizeof(cl_mem), (void*)&t->data);
 	$CHECKERROR
-	f->error = clSetKernelArg(t->kernel, 1, sizeof(cl_mem), (void*)&t->twiddle);
+	f->error = clSetKernelArg(t->kernel[0], 1, sizeof(cl_mem), (void*)&t->twiddle);
 	$CHECKERROR
-	f->error = clSetKernelArg(t->kernel, 2, sizeof(int), (void*)&t->x);
+	f->error = clSetKernelArg(t->kernel[0], 2, sizeof(int), (void*)&t->x);
 	$CHECKERROR
 	
 	/* Bit Reversal */
@@ -457,16 +545,17 @@ void Xtope1DPlanInit(struct topeFFT *f,
 			t->radix[0] = 8;
 		}
 		else if ( t->log[0] % 2 == 0) { 	// Is Radix 4
-			
 			t->radix[0] = 4;
-
+			#if 1
 			t->log = realloc(t->log,sizeof(int)*t->dim);
 			t->radix = realloc(t->radix,sizeof(int)*t->dim);
 
 			t->radix[0] = 4;
 			t->radix[1] = 4;
+			t->log[0] = log2(t->radix[0]);
+			t->log[1] = log2(t->radix[1]);
 			t->dim = 2;
-
+			#endif
 		}
 		else if (x % 2 == 0) { 				// Is Radix 2
 			t->radix[0] = 2;
@@ -575,7 +664,7 @@ void Xtope1DPlanInit(struct topeFFT *f,
 	}
 	else if (t->dim == 2) {
 		if (t->radix[0] > 0 || t->radix[1] > 0) {
-			t->kernel_swap = clCreateKernel(f->program2D, "swapkernel", 
+			t->kernel_swap = clCreateKernel(f->program1D, "swapkernel", 
 											&f->error);
 			$CHECKERROR
 			f->error = clSetKernelArg( 	t->kernel_swap, 0, sizeof(cl_mem),

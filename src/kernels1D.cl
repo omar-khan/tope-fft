@@ -506,6 +506,7 @@ __kernel void DIT4C2CM(	__global double *data,
 	int idY = get_global_id(1);
 
 	#if 1
+	#if 1
 	int powMaxLvl = 7;
 	int powLevels = stage / powMaxLvl;
 	int powRemain = stage % powMaxLvl;
@@ -523,24 +524,22 @@ __kernel void DIT4C2CM(	__global double *data,
 	int powXm1 = powX/4;
 	#endif
 
-	int clipOne, clipTwo, clipThr, clipFou, yIndex, kIndex, red, coeffUse;
+	int clipOne, clipTwo, clipThr, clipFou, yIndex, kIndex, coeffUse;
 	
 	int BASE 	= 0;
 	int STRIDE 	= 1;
 
 	switch(type)
 	{
-		case 1: BASE 		= idY*x; 
+		case 0: BASE 		= idY*x; 
 				yIndex 		= idX / powXm1;
 				kIndex 		= idX % powXm1;
-				red 		= x / 4;	
 				coeffUse 	= kIndex * (x / powX);
 				break;
-		case 2: BASE 		= idX; 
+		case 1: BASE 		= idX; 
 				STRIDE 		= x; 
 				yIndex 		= idY / powXm1;
 				kIndex 		= idY % powXm1;
-				red 		= y / 4;
 				coeffUse 	= kIndex * (y / powX);
 				break;
 	}
@@ -555,7 +554,6 @@ __kernel void DIT4C2CM(	__global double *data,
 								data[clipThr+0],	data[clipThr+1],
 								data[clipFou+0],	data[clipFou+1]	);
 	
-	int quad, buad;
 	double2 TEMPC, clSet1;
 
 	double2 clSet2, clSet3;
@@ -566,13 +564,13 @@ __kernel void DIT4C2CM(	__global double *data,
 		TEMPC.y = SIGA.s3 * clSet2.x + SIGA.s2 * clSet2.y;
 		SIGA.s2 = TEMPC.x;
 		SIGA.s3 = TEMPC.y;
-		clSet1.x = cos(CLPT*kIndex/powX);
+		clSet1.x =  cos(CLPT*kIndex/powX);
 		clSet1.y = -sin(CLPT*kIndex/powX);
 		TEMPC.x = SIGA.s4 * clSet1.x - SIGA.s5 * clSet1.y;
 		TEMPC.y = SIGA.s5 * clSet1.x + SIGA.s4 * clSet1.y;
 		SIGA.s4 = TEMPC.x;
 		SIGA.s5 = TEMPC.y;
-		clSet3.x = cos(3.*CLPT*kIndex/powX);
+		clSet3.x =  cos(3.*CLPT*kIndex/powX);
 		clSet3.y = -sin(3.*CLPT*kIndex/powX);
 		TEMPC.x = SIGA.s6 * clSet3.x - SIGA.s7 * clSet3.y;
 		TEMPC.y = SIGA.s7 * clSet3.x + SIGA.s6 * clSet3.y;
@@ -601,15 +599,16 @@ __kernel void DIT4C2CM(	__global double *data,
 		data[clipFou+1] = SIGA.s1 - SIGA.s3 - SIGA.s4 + SIGA.s6;
 	}
 
-	#if 1
-	data[clipOne+0] = 420;
-	data[clipOne+1] = 420;
-	data[clipTwo+0] = clSet2.x;
-	data[clipTwo+1] = clSet2.y;
-	data[clipThr+0] = clSet1.x;
-	data[clipThr+1] = clSet1.y;
-	data[clipFou+0] = clSet3.x;
-	data[clipFou+1] = clSet3.y;
+	#if 0
+	data[clipOne+0] = 11;
+	data[clipOne+1] = 0;
+	data[clipTwo+0] = 22;
+	data[clipTwo+1] = 0;
+	data[clipThr+0] = 33;
+	data[clipThr+1] = 0;
+	data[clipFou+0] = 44;
+	data[clipFou+1] = 0;
+	#endif
 	#endif
 }
 
@@ -642,6 +641,68 @@ __kernel void DIT8C2CM(	__global double *data,
 __kernel void kernelMUL( __global double *data,
 						const int facX, const int facY)
 {
+	int idX = get_global_id(0);
+	int idY = get_global_id(1);
+
+	int POS = idY*facX+idX;
+
+	double2 TMP = (double2)(data[2*POS],data[2*POS+1]);
+	double2 TWD = (double2)(cos(CLPT*idX*idY/(facX*facY)),
+							sin(CLPT*idX*idY/(facX*facY)));
+
+	data[2*POS+0] = TMP.x * TWD.x - TMP.y * TWD.y;
+	data[2*POS+1] = TMP.y * TWD.x + TMP.x * TWD.y;
+}
+
+__kernel void swapkernel(	__global double *data,	// initial data
+						const int x,	// dims
+						const int y,
+						__global int *bitX,	// bitrev data
+						__global int *bitY,
+						const unsigned int type) // x or y or z
+{
+	int idX = get_global_id(0);
+	int idY = get_global_id(1);
+
+	__private int BASE = 0;
+	__private int STRIDE = 1;
+	__private double holder;
+	__private int runner = 0;
+	__private int OLD = 0, NEW = 0;
+
+	#if 1
+	switch(type)
+	{
+		case 0: BASE = idY*x;
+				if (idX < bitX[idX]) {
+					OLD = 2*(BASE+STRIDE*idX);
+					NEW = 2*(BASE+STRIDE*bitX[idX]);
+
+					holder = data[NEW];
+					data[NEW] = data[OLD];
+					data[OLD] = holder;
+
+					holder = data[NEW+1];
+					data[NEW+1] = data[OLD+1];
+					data[OLD+1] = holder;
+				}
+				break;
+		case 1: BASE = idX; STRIDE = x; 
+				if (idY < bitY[idY]) {
+					OLD = 2*(BASE+STRIDE*idY);
+					NEW = 2*(BASE+STRIDE*bitY[idY]);
+
+					holder = data[NEW];
+					//data[NEW] = data[OLD];
+					//data[OLD] = holder;
+
+					holder = data[NEW+1];
+					//data[NEW+1] = data[OLD+1];
+					//data[OLD+1] = holder;
+				}
+				break;
+	}
+	#endif
 }
 
 __kernel void DIT2C2C(	__global double *data, 

@@ -148,8 +148,8 @@ int main(int argc, char *argv[])
 	
 	#if 1 // Show Output
 	for (i = 0; i < N; i++) {
-		printf("%lf\t%lf\n", data[2*i], data[2*i+1]); 	// Tope
-		printf("%lf:%lf\t", out[i][0], out[i][1]); 		// FFTW
+		printf("%lf:%lf\t", data[2*i], data[2*i+1]); 	// Tope
+		printf("%lf:%lf\n", out[i][0], out[i][1]); 		// FFTW
 		//printf("%lf:%lf\n", dataLoca[i].x, dataLoca[i].y); // cuFFT
 	}
 	#endif
