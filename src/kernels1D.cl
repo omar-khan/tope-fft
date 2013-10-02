@@ -693,12 +693,12 @@ __kernel void swapkernel(	__global double *data,	// initial data
 					NEW = 2*(BASE+STRIDE*bitY[idY]);
 
 					holder = data[NEW];
-					//data[NEW] = data[OLD];
-					//data[OLD] = holder;
+					data[NEW] = data[OLD];
+					data[OLD] = holder;
 
 					holder = data[NEW+1];
-					//data[NEW+1] = data[OLD+1];
-					//data[OLD+1] = holder;
+					data[NEW+1] = data[OLD+1];
+					data[OLD+1] = holder;
 				}
 				break;
 	}

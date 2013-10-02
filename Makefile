@@ -1,8 +1,8 @@
-CC = gcc -m32
+CC = gcc 
 CFLAGS = -Wall -fPIC -O2 
 LDFLAGS = -lOpenCL -lm -I/usr/local/cuda/include -g -pg
 LDTEST = -lfftw3 -lOpenCL -lTopeFFT -L/opt/topefft -g -pg
-CUDAFLAGS = -I/usr/local/cuda/include -L/usr/local/cuda/lib -lcuda -lcudart -lcufft
+CUDAFLAGS = -I/usr/local/cuda/include -L/usr/local/cuda/lib64 -lcuda -lcudart -lcufft
 
 REQ = src/util.c src/fft1d.c src/fft3d.c src/fft2d.c src/checkers.c src/fft1d_mix.c
 OBJ = obj/util.o obj/fft1d.o obj/fft3d.o obj/fft2d.o obj/checkers.o obj/fft1d_mix.o
@@ -32,14 +32,15 @@ install:
 	ln -sf /opt/topefft/libTopeFFT.so.1.0 /opt/topefft/libTopeFFT.so
 
 clean:
-	@rm -f obj/*.o
-	@rm -f bin/*
-	@rm -f a.out
-	@rm -f .sw*
-	@rm -f .*sw*
-	@rm -f src/.sw*
-	@rm -f src/kern*.ptx
-	
+	rm -f obj/*.o
+	rm -f bin/*
+	rm -f a.out
+	rm -f .sw*
+	rm -f .*sw*
+	rm -f src/.sw*
+	rm -f src/kern*.ptx
+	rm -f lib/*
+	rm -f gmon.out	
 
 
 

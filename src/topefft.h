@@ -11,7 +11,9 @@
 #define INVERSE 0
 
 struct XtopePlan1D {
-	int x;
+	int length;
+	int *side;
+	int *bits;				// Max bits Required
 	int *log;
 	int type;				// C2C/R2C etc.	
 	int *radix;
@@ -29,7 +31,7 @@ struct XtopePlan1D {
 	cl_ulong totalMemory;		// profiling: mem transfers
 	cl_ulong totalPreKernel;	// profiling: before butterflies
 	cl_ulong totalKernel;		// profiling: butterflies
-	cl_uint dim;				// dimensions of data
+	cl_uint dim;				// factors of data
 	size_t *globalSize;			// kernel dimensions setup
 	size_t *localSize;
 };
