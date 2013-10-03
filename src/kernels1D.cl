@@ -648,10 +648,45 @@ __kernel void kernelMUL( __global double *data,
 
 	double2 TMP = (double2)(data[2*POS],data[2*POS+1]);
 	double2 TWD = (double2)(cos(CLPT*idX*idY/(facX*facY)),
-							sin(CLPT*idX*idY/(facX*facY)));
+							-sin(CLPT*idX*idY/(facX*facY)));
 
 	data[2*POS+0] = TMP.x * TWD.x - TMP.y * TWD.y;
 	data[2*POS+1] = TMP.y * TWD.x + TMP.x * TWD.y;
+}
+
+__kernel void transpose2( __global double *data,
+						  const int xR,
+						  const int yR)
+{
+	int idX = get_global_id(0);
+	int idY = get_global_id(1);
+	int xxx = idY*xR + idX;
+
+	int var1 = xxx;
+	int var2 = 0;
+	do {	
+		var2++;
+		var1 = (var1 % yR) * xR + var1 / yR;
+	} while (var1 > xxx);
+
+	double temp1, temp2;
+	if (var1 < xxx || var2 == 1) {
+	}
+	else {
+		var1 = xxx;	
+		temp1 = data[2*var1];
+		temp2 = data[2*var1+1];
+		do {
+			var2 = (var1 % yR) * xR + var1 / yR;
+			data[2*var1]   = (var2 == xxx) ? temp1 : data[2*var2];
+			data[2*var1+1] = (var2 == xxx) ? temp2 : data[2*var2+1];
+			var1 = var2;
+		} while (var1 > xxx);
+	}
+	#if 0
+	data[2*xxx] = get_global_size(0);
+	data[2*xxx+1] = get_global_size(1);
+	#endif
 }
 
 __kernel void swapkernel(	__global double *data,	// initial data
@@ -670,14 +705,13 @@ __kernel void swapkernel(	__global double *data,	// initial data
 	__private int runner = 0;
 	__private int OLD = 0, NEW = 0;
 
-	#if 1
 	switch(type)
 	{
 		case 0: BASE = idY*x;
 				if (idX < bitX[idX]) {
 					OLD = 2*(BASE+STRIDE*idX);
 					NEW = 2*(BASE+STRIDE*bitX[idX]);
-
+					
 					holder = data[NEW];
 					data[NEW] = data[OLD];
 					data[OLD] = holder;
@@ -702,7 +736,6 @@ __kernel void swapkernel(	__global double *data,	// initial data
 				}
 				break;
 	}
-	#endif
 }
 
 __kernel void DIT2C2C(	__global double *data, 

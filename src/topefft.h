@@ -23,6 +23,7 @@ struct XtopePlan1D {
 	cl_kernel kernel_swap;	// swapper kernel
 	cl_kernel kernel_twid;	// twiddle calculator
 	cl_kernel kernel_div;
+	cl_kernel kernel_tran2; // transpose2 kernel
 	cl_mem data;			// main data
 	cl_mem *bitrev;			// bitreversal data
 	cl_mem twiddle;			// twiddles
