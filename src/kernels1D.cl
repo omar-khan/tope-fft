@@ -16,12 +16,34 @@
 #define we7 0.900968867902419
 #define wf7 0.433883739117558
 
-int myPow(int x,int y){
-	int i,p=1;
-	for(i=0;i<y;i++){
-		p*=x;
-	}
-	return p;
+#define wa10 0.809016994374947	
+#define wb10 0.587785252292473
+#define wc10 0.309016994374947
+#define wd10 0.951056516295154
+
+int topePow(double x, int y, int levels) {
+	#if 1
+	int powLevels = y / levels;
+	int powRemain = y % levels;
+	int powX = 1;
+	int l;
+	for (l = 0; l < powLevels; l++)	
+		powX *= pow(x,levels);
+	powX *= pow(x,powRemain);
+	#endif
+	#if 0
+	int powX = exp2(log2(2.)*stage);
+	#endif
+	return powX;
+}
+
+double4 rad2(double4 LOC, double2 clSet1)
+{
+	double4 FIN =  (double4)(	LOC.x + LOC.z * clSet1.x - LOC.w * clSet1.y,
+								LOC.y + LOC.w * clSet1.x + LOC.z * clSet1.y,
+								LOC.x - LOC.z * clSet1.x + LOC.w * clSet1.y,
+								LOC.y - LOC.w * clSet1.x - LOC.z * clSet1.y);
+	return FIN;
 }
 
 __kernel void twid1D(__global double2 *twiddle, int size)
@@ -39,23 +61,8 @@ __kernel void DIT4C2C(	__global double *data,
 {
 	int idX = get_global_id(0);
 	
-	#if 1
-	int powMaxLvl = 7;
-	int powLevels = stage / powMaxLvl;
-	int powRemain = stage % powMaxLvl;
-	int powX = 1;
-	int powXm1 = 1;
-	int x;
-	for (x = 0; x < powLevels; x++) {
-		powX *= pow(4.0f,powMaxLvl);
-	}
-	powX *= pow(4.0f,powRemain);
-	powXm1 = powX/4;
-	#endif
-	#if 0
-	int powX = exp2(log2(4.)*stage);
+	int powX = topePow(4., stage, 7);
 	int powXm1 = powX/4;
-	#endif
 
 	int clipOne, clipTwo, clipThr, clipFou;
 	int yIndex, kIndex;
@@ -198,6 +205,457 @@ __kernel void DIT4C2C(	__global double *data,
 	#endif
 }
 
+
+__kernel void DIT10C2CM(	__global double *data,
+						const int x, const int y,
+						unsigned int stage,
+						unsigned int dir,
+						unsigned int type) 
+{
+	int idX = get_global_id(0);
+	int idY = get_global_id(1);
+
+	int powX = topePow(10.,stage,3);
+	int powXm1 = powX/10;
+
+	int clipOne, clipTwo, clipThr, clipFou, clipFiv, 
+		clipSix, clipSev, clipEight, clipNine, clipTen;
+	int yIndex, kIndex;
+
+	int BASE 	= 0;
+	int STRIDE 	= 1;
+
+	switch(type)
+	{
+		case 0: BASE 		= idY*x; 
+				yIndex 		= idX / powXm1;
+				kIndex 		= idX % powXm1;
+				break;
+		case 1: BASE 		= idX; 
+				STRIDE 		= x; 
+				yIndex 		= idY / powXm1;
+				kIndex 		= idY % powXm1;
+				break;
+	}
+	
+	clipOne 	= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 0 * powXm1));
+	clipTwo 	= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 1 * powXm1));
+	clipThr		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 2 * powXm1));
+	clipFou		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 3 * powXm1));
+	clipFiv		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 4 * powXm1));
+	clipSix		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 5 * powXm1));
+	clipSev		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 6 * powXm1));
+	clipEight	= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 7 * powXm1));
+	clipNine	= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 8 * powXm1));
+	clipTen		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 9 * powXm1));
+
+	
+	double2 TEMPC;
+	double8 SIG4A = (double8)(	data[clipOne+0],data[clipOne+1],
+					data[clipTwo+0],data[clipTwo+1],
+					data[clipThr+0],data[clipThr+1],
+					data[clipFou+0],data[clipFou+1]);
+	double2 SIG5A = (double2)(	data[clipFiv+0],data[clipFiv+1]);
+	double2 SIG6A = (double2)(	data[clipSix+0],data[clipSix+1]);
+	double2 SIG7A = (double2)(	data[clipSev+0],data[clipSev+1]);
+	double2 SIG8A = (double2)(	data[clipEight+0],data[clipEight+1]);
+	double2 SIG9A = (double2)(	data[clipNine+0],data[clipNine+1]);
+	double2 SIG10A = (double2)(	data[clipTen+0],data[clipTen+1]);
+	
+	double2 clSet2, clSet3, clSet4, clSet5, clSet6, clSet7, clSet8, clSet9, clSet10, temp2;
+	
+	if (kIndex!=0) {
+		
+		clSet2.x =  cos(CLPT*kIndex/powX);
+		clSet2.y = -sin(CLPT*kIndex/powX);
+		if (dir == 0) clSet2.y *= -1;
+		TEMPC.x = SIG4A.s2 * clSet2.x - SIG4A.s3 * clSet2.y;
+		TEMPC.y = SIG4A.s2 * clSet2.y + SIG4A.s3 * clSet2.x;
+		SIG4A.s2 = TEMPC.x;
+		SIG4A.s3 = TEMPC.y;
+	
+		clSet3.x = cos(2*CLPT*kIndex/powX);
+		clSet3.y = -sin(2*CLPT*kIndex/powX);
+		if (dir == 0) clSet3.y *= -1;
+		TEMPC.x = SIG4A.s4 * clSet3.x - SIG4A.s5 * clSet3.y;
+		TEMPC.y = SIG4A.s4 * clSet3.y + SIG4A.s5 * clSet3.x;
+		SIG4A.s4 = TEMPC.x;
+		SIG4A.s5 = TEMPC.y;
+
+		clSet4.x = cos(3*CLPT*kIndex/powX);
+		clSet4.y = -sin(3*CLPT*kIndex/powX);
+		if (dir == 0) clSet4.y *= -1;
+		TEMPC.x = SIG4A.s6 * clSet4.x - SIG4A.s7 * clSet4.y;
+		TEMPC.y = SIG4A.s6 * clSet4.y + SIG4A.s7 * clSet4.x;
+		SIG4A.s6 = TEMPC.x;
+		SIG4A.s7 = TEMPC.y;
+	
+		clSet5.x = cos(4*CLPT*kIndex/powX);
+		clSet5.y = -sin(4*CLPT*kIndex/powX);
+		if (dir == 0) clSet5.y *= -1;
+		TEMPC.x = SIG5A.x * clSet5.x - SIG5A.y * clSet5.y;
+		TEMPC.y = SIG5A.x * clSet5.y + SIG5A.y * clSet5.x;
+		SIG5A.x = TEMPC.x;
+		SIG5A.y = TEMPC.y;
+
+		clSet6.x = cos(5*CLPT*kIndex/powX);
+		clSet6.y = -sin(5*CLPT*kIndex/powX);
+		if (dir == 0) clSet6.y *= -1;
+		TEMPC.x = SIG6A.x * clSet6.x - SIG6A.y * clSet6.y;
+		TEMPC.y = SIG6A.x * clSet6.y + SIG6A.y * clSet6.x;
+		SIG6A.x = TEMPC.x;
+		SIG6A.y = TEMPC.y;
+
+		clSet7.x = cos(6*CLPT*kIndex/powX);
+		clSet7.y = -sin(6*CLPT*kIndex/powX);
+		if (dir == 0) clSet7.y *= -1;
+		TEMPC.x = SIG7A.x * clSet7.x - SIG7A.y * clSet7.y;
+		TEMPC.y = SIG7A.x * clSet7.y + SIG7A.y * clSet7.x;
+		SIG7A.x = TEMPC.x;
+		SIG7A.y = TEMPC.y;
+
+		
+		clSet8.x = cos(7*CLPT*kIndex/powX);
+		clSet8.y = -sin(7*CLPT*kIndex/powX);
+		if (dir == 0) clSet8.y *= -1;
+		TEMPC.x = SIG8A.x * clSet8.x - SIG8A.y * clSet8.y;
+		TEMPC.y = SIG8A.x * clSet8.y + SIG8A.y * clSet8.x;
+		SIG8A.x = TEMPC.x;
+		SIG8A.y = TEMPC.y;
+
+		
+		clSet9.x = cos(8*CLPT*kIndex/powX);
+		clSet9.y = -sin(8*CLPT*kIndex/powX);
+		if (dir == 0) clSet9.y *= -1;
+		TEMPC.x = SIG9A.x * clSet9.x - SIG9A.y * clSet9.y;
+		TEMPC.y = SIG9A.x * clSet9.y + SIG9A.y * clSet9.x;
+		SIG9A.x = TEMPC.x;
+		SIG9A.y = TEMPC.y;
+
+		
+		clSet10.x = cos(9*CLPT*kIndex/powX);
+		clSet10.y = -sin(9*CLPT*kIndex/powX);
+		if (dir == 0) clSet10.y *= -1;
+		TEMPC.x = SIG10A.x * clSet10.x - SIG10A.y * clSet10.y;
+		TEMPC.y = SIG10A.x * clSet10.y + SIG10A.y * clSet10.x;
+		SIG10A.x = TEMPC.x;
+		SIG10A.y = TEMPC.y;
+	
+
+
+		
+	}	
+		data[clipOne+0] = SIG4A.s0 + SIG4A.s2 + SIG4A.s4 + SIG4A.s6 + SIG5A.x + SIG6A.x + SIG7A.x + SIG8A.x + SIG9A.x + SIG10A.x;
+		data[clipOne+1] = SIG4A.s1 + SIG4A.s3 + SIG4A.s5 + SIG4A.s7 + SIG5A.y + SIG6A.y + SIG7A.y + SIG8A.y + SIG9A.y + SIG10A.y;
+	
+		data[clipTwo+0] = SIG4A.s0 + (wa10*SIG4A.s2 + wb10*SIG4A.s3) +(wc10*SIG4A.s4 + wd10*SIG4A.s5) + (-wc10*SIG4A.s6 + wd10*SIG4A.s7) + (-wa10*SIG5A.x + wb10*SIG5A.y) + (-SIG6A.x) + (-wa10*SIG7A.x - wb10*SIG7A.y) + (-wc10*SIG8A.x - wd10*SIG8A.y) + (wc10*SIG9A.x - wd10*SIG9A.y) + (wa10*SIG10A.x - wb10*SIG10A.y);
+		data[clipTwo+1] = SIG4A.s1 + (wa10*SIG4A.s3 - wb10*SIG4A.s2) +(wc10*SIG4A.s5 - wd10*SIG4A.s4) + (-wc10*SIG4A.s7 - wd10*SIG4A.s6) + (-wa10*SIG5A.y - wb10*SIG5A.x) + (-SIG6A.y) + (-wa10*SIG7A.y + wb10*SIG7A.x) + (-wc10*SIG8A.y + wd10*SIG8A.x) + (wc10*SIG9A.y + wd10*SIG9A.x) +(wa10*SIG10A.y + wb10*SIG10A.x) ;
+
+		data[clipThr+0] = SIG4A.s0 + (wc10*SIG4A.s2 + wd10*SIG4A.s3) +(-wa10*SIG4A.s4 + wb10*SIG4A.s5) + (-wa10*SIG4A.s6 - wb10*SIG4A.s7) + (wc10*SIG5A.x - wd10*SIG5A.y) + (SIG6A.x) + (wc10*SIG7A.x + 	wd10*SIG7A.y) + (-wa10*SIG8A.x + wb10*SIG8A.y) + (-wa10*SIG9A.x - wb10*SIG9A.y) + (wc10*SIG10A.x - wd10*SIG10A.y);
+		data[clipThr+1] = SIG4A.s1 + (wc10*SIG4A.s3 - wd10*SIG4A.s2) +(-wa10*SIG4A.s5 - wb10*SIG4A.s4) + (-wa10*SIG4A.s7 + wb10*SIG4A.s6) + (wc10*SIG5A.y + wd10*SIG5A.x) + (SIG6A.y) + (wc10*SIG7A.y - wd10*SIG7A.x) + (-wa10*SIG8A.y - wb10*SIG8A.x) + (-wa10*SIG9A.y + wb10*SIG9A.x) +(wc10*SIG10A.y + wd10*SIG10A.x) ;
+
+
+	data[clipFou+0] = SIG4A.s0 + (-wc10*SIG4A.s2 + wd10*SIG4A.s3) 
+					+(-wa10*SIG4A.s4 - wb10*SIG4A.s5) 
+					+ (wa10*SIG4A.s6 - wb10*SIG4A.s7) 
+					+ (wc10*SIG5A.x + wd10*SIG5A.y) 
+					+ (-SIG6A.x) + (wc10*SIG7A.x - 	wd10*SIG7A.y) 
+					+ (wa10*SIG8A.x + wb10*SIG8A.y) 
+					+ (-wa10*SIG9A.x + wb10*SIG9A.y) 
+					+ (-wc10*SIG10A.x - wd10*SIG10A.y);
+	data[clipFou+1] = SIG4A.s1 + (-wc10*SIG4A.s3 - wd10*SIG4A.s2) 
+					+(-wa10*SIG4A.s5 + wb10*SIG4A.s4) 
+					+ (wa10*SIG4A.s7 + wb10*SIG4A.s6) 
+					+ (wc10*SIG5A.y - wd10*SIG5A.x) + (-SIG6A.y) 
+					+ (wc10*SIG7A.y + wd10*SIG7A.x) 
+					+ (wa10*SIG8A.y - wb10*SIG8A.x) 
+					+ (-wa10*SIG9A.y - wb10*SIG9A.x) 
+					+(-wc10*SIG10A.y + wd10*SIG10A.x) ;
+
+	data[clipFiv+0] = SIG4A.s0 + (-wa10*SIG4A.s2 + wb10*SIG4A.s3) 
+					+ (wc10*SIG4A.s4 - wd10*SIG4A.s5) 
+					+ (wc10*SIG4A.s6 + wd10*SIG4A.s7) 
+					+ (-wa10*SIG5A.x - wb10*SIG5A.y) 
+					+ (SIG6A.x) + (-wa10*SIG7A.x + 	wb10*SIG7A.y) 
+					+ (wc10*SIG8A.x - wd10*SIG8A.y) 
+					+ (wc10*SIG9A.x + wd10*SIG9A.y) 
+					+ (-wa10*SIG10A.x - wb10*SIG10A.y);
+	data[clipFiv+1] = SIG4A.s1 + (-wa10*SIG4A.s3 - wb10*SIG4A.s2) 
+					+ (wc10*SIG4A.s5 + wd10*SIG4A.s4) 
+					+ (wc10*SIG4A.s7 - wd10*SIG4A.s6) 
+					+ (-wa10*SIG5A.y + wb10*SIG5A.x) 
+					+ (SIG6A.y) + (-wa10*SIG7A.y - wb10*SIG7A.x) 
+					+ (wc10*SIG8A.y + wd10*SIG8A.x) 
+					+ (wc10*SIG9A.y - wd10*SIG9A.x) 
+					+(-wa10*SIG10A.y + wb10*SIG10A.x) ;
+
+		data[clipSix+0] = SIG4A.s0 + (-SIG4A.s2) + SIG4A.s4 + (-SIG4A.s6) + SIG5A.x + (-SIG6A.x) + SIG7A.x + (-SIG8A.x) + SIG9A.x + (-SIG10A.x);
+		data[clipSix+1] = SIG4A.s1 + (-SIG4A.s3) + SIG4A.s5 + (-SIG4A.s7) + SIG5A.y + (-SIG6A.y) + SIG7A.y + (-SIG8A.y) + SIG9A.y + (-SIG10A.y);
+
+		data[clipSev+0] = SIG4A.s0 + (-wa10*SIG4A.s2 - wb10*SIG4A.s3) +(wc10*SIG4A.s4 + wd10*SIG4A.s5) + (wc10*SIG4A.s6 - wd10*SIG4A.s7) + (-wa10*SIG5A.x + wb10*SIG5A.y) + (SIG6A.x) + (-wa10*SIG7A.x - wb10*SIG7A.y) + (wc10*SIG8A.x + wd10*SIG8A.y) + (wc10*SIG9A.x - wd10*SIG9A.y) + (-wa10*SIG10A.x + wb10*SIG10A.y);
+		data[clipSev+1] = SIG4A.s1 + (-wa10*SIG4A.s3 + wb10*SIG4A.s2) +(wc10*SIG4A.s5 - wd10*SIG4A.s4) + (wc10*SIG4A.s7 + wd10*SIG4A.s6) + (-wa10*SIG5A.y - wb10*SIG5A.x) + (SIG6A.y) + (-wa10*SIG7A.y + wb10*SIG7A.x) + (wc10*SIG8A.y - wd10*SIG8A.x) + (wc10*SIG9A.y + wd10*SIG9A.x) +(-wa10*SIG10A.y - wb10*SIG10A.x) ;
+
+
+		data[clipEight+0] = SIG4A.s0 + (-wc10*SIG4A.s2 - wd10*SIG4A.s3) +(-wa10*SIG4A.s4 + wb10*SIG4A.s5) + (wa10*SIG4A.s6 + wb10*SIG4A.s7) + (wc10*SIG5A.x - wd10*SIG5A.y) + (-SIG6A.x) + (wc10*SIG7A.x + wd10*SIG7A.y) + (wa10*SIG8A.x - wb10*SIG8A.y) + (-wa10*SIG9A.x - wb10*SIG9A.y) + (-wc10*SIG10A.x + wd10*SIG10A.y);
+		data[clipEight+1] = SIG4A.s1 + (-wc10*SIG4A.s3 + wd10*SIG4A.s2) +(-wa10*SIG4A.s5 -wb10*SIG4A.s4) + (wa10*SIG4A.s7 - wb10*SIG4A.s6) + (wc10*SIG5A.y + wd10*SIG5A.x) + (-SIG6A.y) + (wc10*SIG7A.y - wd10*SIG7A.x) + (wa10*SIG8A.y + wb10*SIG8A.x) + (-wa10*SIG9A.y + wb10*SIG9A.x) +(-wc10*SIG10A.y - wd10*SIG10A.x) ;
+
+
+		data[clipNine+0] = SIG4A.s0 + (wc10*SIG4A.s2 - wd10*SIG4A.s3) +(-wa10*SIG4A.s4 - wb10*SIG4A.s5) + (-wa10*SIG4A.s6 + wb10*SIG4A.s7) + (wc10*SIG5A.x + wd10*SIG5A.y) + (SIG6A.x) + (wc10*SIG7A.x - wd10*SIG7A.y) + (-wa10*SIG8A.x - wb10*SIG8A.y) + (-wa10*SIG9A.x + wb10*SIG9A.y) + (wc10*SIG10A.x + wd10*SIG10A.y);
+		data[clipNine+1] = SIG4A.s1 + (wc10*SIG4A.s3 + wd10*SIG4A.s2) +(-wa10*SIG4A.s5 + wb10*SIG4A.s4) + (-wa10*SIG4A.s7 - wb10*SIG4A.s6) + (wc10*SIG5A.y - wd10*SIG5A.x) + (SIG6A.y) + (wc10*SIG7A.y + wd10*SIG7A.x) + (-wa10*SIG8A.y + wb10*SIG8A.x) + (-wa10*SIG9A.y - wb10*SIG9A.x) +(wc10*SIG10A.y - wd10*SIG10A.x) ;
+
+
+		data[clipTen+0] = SIG4A.s0 + (wa10*SIG4A.s2 - wb10*SIG4A.s3) +(wc10*SIG4A.s4 - wd10*SIG4A.s5) + (-wc10*SIG4A.s6 - wd10*SIG4A.s7) + (-wa10*SIG5A.x - wb10*SIG5A.y) + (-SIG6A.x) + (-wa10*SIG7A.x + wb10*SIG7A.y) + (-wc10*SIG8A.x + wd10*SIG8A.y) + (wc10*SIG9A.x + wd10*SIG9A.y) + (wa10*SIG10A.x + wb10*SIG10A.y);
+		data[clipTen+1] = SIG4A.s1 + (wa10*SIG4A.s3 + wb10*SIG4A.s2) +(wc10*SIG4A.s5 + wd10*SIG4A.s4) + (-wc10*SIG4A.s7 + wd10*SIG4A.s6) + (-wa10*SIG5A.y + wb10*SIG5A.x) + (-SIG6A.y) + (-wa10*SIG7A.y - wb10*SIG7A.x) + (-wc10*SIG8A.y - wd10*SIG8A.x) + (wc10*SIG9A.y - wd10*SIG9A.x) +(wa10*SIG10A.y - wb10*SIG10A.x) ;
+	
+	#if 0 // Debug code
+	data[clipOne+0] = 11;//kIndex;
+	data[clipOne+1] = 11;//yIndex;
+	data[clipTwo+0] = 22;//kIndex;
+	data[clipTwo+1] = 22;//yIndex;
+	data[clipThr+0] = 33;//kIndex;
+	data[clipThr+1] = 33;//yIndex;
+	data[clipFou+0] = 44;//kIndex;
+	data[clipFou+1] = 44;//yIndex;
+	data[clipFiv+0] = 55;//kIndex;
+	data[clipFiv+1] = 55;//yIndex;
+	data[clipSix+0] = 66;//kIndex;
+	data[clipSix+1] = 66;//yIndex;
+	data[clipSev+0] = 77;//kIndex;
+	data[clipSev+1] = 77;//yIndex;
+	data[clipEight+0] = 88;//kIndex;
+	data[clipEight+1] = 88;//yIndex;
+	data[clipNine+0] = 99;//kIndex;
+	data[clipNine+1] = 99;//yIndex;
+	data[clipTen+0] = 100;//kIndex;
+	data[clipTen+1] = 100;//yIndex;
+	#endif
+}
+
+__kernel void DIT10C2C(	__global double *data, 
+			const int size,
+			unsigned int stage,
+			unsigned int dir)
+{
+#if 1 // correct
+	int idX = get_global_id(0);
+	int powMaxLvl = 3;
+	int powLevels = stage / powMaxLvl;
+	int powRemain = stage % powMaxLvl;
+	int powX = 1;
+	int powXm1 = 1;
+	int x;
+	for (x = 0; x < powLevels; x++) {
+		powX *= pow(10.0,powMaxLvl);
+	}
+	powX *= pow(10.0,powRemain);
+	powXm1 = powX/10;
+	#if 0
+	int powX = exp2(log2(5.)*stage);
+	int powXm1 = powX/5;
+	#endif       
+	// x =pow(5.0,2)=25 whereas x=pow(5.0f,2)=24												
+	
+	int clipOne, clipTwo, clipThr, clipFou, clipFiv, clipSix, clipSev, clipEight, clipNine, clipTen;
+	int yIndex, kIndex;
+	yIndex = idX / powXm1;
+	kIndex = idX % powXm1;
+	
+	clipOne 	= 2 * (kIndex + yIndex * powX + 0 * powXm1);
+	clipTwo 	= 2 * (kIndex + yIndex * powX + 1 * powXm1);
+	clipThr		= 2 * (kIndex + yIndex * powX + 2 * powXm1);
+	clipFou		= 2 * (kIndex + yIndex * powX + 3 * powXm1);
+	clipFiv		= 2 * (kIndex + yIndex * powX + 4 * powXm1);
+	clipSix		= 2 * (kIndex + yIndex * powX + 5 * powXm1);
+	clipSev		= 2 * (kIndex + yIndex * powX + 6 * powXm1);
+	clipEight	= 2 * (kIndex + yIndex * powX + 7 * powXm1);
+	clipNine	= 2 * (kIndex + yIndex * powX + 8 * powXm1);
+	clipTen		= 2 * (kIndex + yIndex * powX + 9 * powXm1);
+
+	
+	double2 TEMPC;
+	double8 SIG4A = (double8)(	data[clipOne+0],data[clipOne+1],
+					data[clipTwo+0],data[clipTwo+1],
+					data[clipThr+0],data[clipThr+1],
+					data[clipFou+0],data[clipFou+1]);
+	double2 SIG5A = (double2)(	data[clipFiv+0],data[clipFiv+1]);
+	double2 SIG6A = (double2)(	data[clipSix+0],data[clipSix+1]);
+	double2 SIG7A = (double2)(	data[clipSev+0],data[clipSev+1]);
+	double2 SIG8A = (double2)(	data[clipEight+0],data[clipEight+1]);
+	double2 SIG9A = (double2)(	data[clipNine+0],data[clipNine+1]);
+	double2 SIG10A = (double2)(	data[clipTen+0],data[clipTen+1]);
+	
+	int coeffUse = kIndex * (size / powX);
+	double2 clSet2, clSet3, clSet4, clSet5, clSet6, clSet7, clSet8, clSet9, clSet10, temp2;
+	
+	if (kIndex!=0) {
+		
+		clSet2.x =  cos(CLPT*kIndex/powX);
+		clSet2.y = -sin(CLPT*kIndex/powX);
+		if (dir == 0) clSet2.y *= -1;
+		TEMPC.x = SIG4A.s2 * clSet2.x - SIG4A.s3 * clSet2.y;
+		TEMPC.y = SIG4A.s2 * clSet2.y + SIG4A.s3 * clSet2.x;
+		SIG4A.s2 = TEMPC.x;
+		SIG4A.s3 = TEMPC.y;
+	
+		clSet3.x = cos(2*CLPT*kIndex/powX);
+		clSet3.y = -sin(2*CLPT*kIndex/powX);
+		if (dir == 0) clSet3.y *= -1;
+		TEMPC.x = SIG4A.s4 * clSet3.x - SIG4A.s5 * clSet3.y;
+		TEMPC.y = SIG4A.s4 * clSet3.y + SIG4A.s5 * clSet3.x;
+		SIG4A.s4 = TEMPC.x;
+		SIG4A.s5 = TEMPC.y;
+
+		clSet4.x = cos(3*CLPT*kIndex/powX);
+		clSet4.y = -sin(3*CLPT*kIndex/powX);
+		if (dir == 0) clSet4.y *= -1;
+		TEMPC.x = SIG4A.s6 * clSet4.x - SIG4A.s7 * clSet4.y;
+		TEMPC.y = SIG4A.s6 * clSet4.y + SIG4A.s7 * clSet4.x;
+		SIG4A.s6 = TEMPC.x;
+		SIG4A.s7 = TEMPC.y;
+	
+		clSet5.x = cos(4*CLPT*kIndex/powX);
+		clSet5.y = -sin(4*CLPT*kIndex/powX);
+		if (dir == 0) clSet5.y *= -1;
+		TEMPC.x = SIG5A.x * clSet5.x - SIG5A.y * clSet5.y;
+		TEMPC.y = SIG5A.x * clSet5.y + SIG5A.y * clSet5.x;
+		SIG5A.x = TEMPC.x;
+		SIG5A.y = TEMPC.y;
+
+		clSet6.x = cos(5*CLPT*kIndex/powX);
+		clSet6.y = -sin(5*CLPT*kIndex/powX);
+		if (dir == 0) clSet6.y *= -1;
+		TEMPC.x = SIG6A.x * clSet6.x - SIG6A.y * clSet6.y;
+		TEMPC.y = SIG6A.x * clSet6.y + SIG6A.y * clSet6.x;
+		SIG6A.x = TEMPC.x;
+		SIG6A.y = TEMPC.y;
+
+		clSet7.x = cos(6*CLPT*kIndex/powX);
+		clSet7.y = -sin(6*CLPT*kIndex/powX);
+		if (dir == 0) clSet7.y *= -1;
+		TEMPC.x = SIG7A.x * clSet7.x - SIG7A.y * clSet7.y;
+		TEMPC.y = SIG7A.x * clSet7.y + SIG7A.y * clSet7.x;
+		SIG7A.x = TEMPC.x;
+		SIG7A.y = TEMPC.y;
+
+		
+		clSet8.x = cos(7*CLPT*kIndex/powX);
+		clSet8.y = -sin(7*CLPT*kIndex/powX);
+		if (dir == 0) clSet8.y *= -1;
+		TEMPC.x = SIG8A.x * clSet8.x - SIG8A.y * clSet8.y;
+		TEMPC.y = SIG8A.x * clSet8.y + SIG8A.y * clSet8.x;
+		SIG8A.x = TEMPC.x;
+		SIG8A.y = TEMPC.y;
+
+		
+		clSet9.x = cos(8*CLPT*kIndex/powX);
+		clSet9.y = -sin(8*CLPT*kIndex/powX);
+		if (dir == 0) clSet9.y *= -1;
+		TEMPC.x = SIG9A.x * clSet9.x - SIG9A.y * clSet9.y;
+		TEMPC.y = SIG9A.x * clSet9.y + SIG9A.y * clSet9.x;
+		SIG9A.x = TEMPC.x;
+		SIG9A.y = TEMPC.y;
+
+		
+		clSet10.x = cos(9*CLPT*kIndex/powX);
+		clSet10.y = -sin(9*CLPT*kIndex/powX);
+		if (dir == 0) clSet10.y *= -1;
+		TEMPC.x = SIG10A.x * clSet10.x - SIG10A.y * clSet10.y;
+		TEMPC.y = SIG10A.x * clSet10.y + SIG10A.y * clSet10.x;
+		SIG10A.x = TEMPC.x;
+		SIG10A.y = TEMPC.y;
+	
+
+
+		
+	}	
+		data[clipOne+0] = SIG4A.s0 + SIG4A.s2 + SIG4A.s4 + SIG4A.s6 + SIG5A.x + SIG6A.x + SIG7A.x + SIG8A.x + SIG9A.x + SIG10A.x;
+		data[clipOne+1] = SIG4A.s1 + SIG4A.s3 + SIG4A.s5 + SIG4A.s7 + SIG5A.y + SIG6A.y + SIG7A.y + SIG8A.y + SIG9A.y + SIG10A.y;
+	
+		data[clipTwo+0] = SIG4A.s0 + (wa10*SIG4A.s2 + wb10*SIG4A.s3) +(wc10*SIG4A.s4 + wd10*SIG4A.s5) + (-wc10*SIG4A.s6 + wd10*SIG4A.s7) + (-wa10*SIG5A.x + wb10*SIG5A.y) + (-SIG6A.x) + (-wa10*SIG7A.x - wb10*SIG7A.y) + (-wc10*SIG8A.x - wd10*SIG8A.y) + (wc10*SIG9A.x - wd10*SIG9A.y) + (wa10*SIG10A.x - wb10*SIG10A.y);
+		data[clipTwo+1] = SIG4A.s1 + (wa10*SIG4A.s3 - wb10*SIG4A.s2) +(wc10*SIG4A.s5 - wd10*SIG4A.s4) + (-wc10*SIG4A.s7 - wd10*SIG4A.s6) + (-wa10*SIG5A.y - wb10*SIG5A.x) + (-SIG6A.y) + (-wa10*SIG7A.y + wb10*SIG7A.x) + (-wc10*SIG8A.y + wd10*SIG8A.x) + (wc10*SIG9A.y + wd10*SIG9A.x) +(wa10*SIG10A.y + wb10*SIG10A.x) ;
+
+		data[clipThr+0] = SIG4A.s0 + (wc10*SIG4A.s2 + wd10*SIG4A.s3) +(-wa10*SIG4A.s4 + wb10*SIG4A.s5) + (-wa10*SIG4A.s6 - wb10*SIG4A.s7) + (wc10*SIG5A.x - wd10*SIG5A.y) + (SIG6A.x) + (wc10*SIG7A.x + 	wd10*SIG7A.y) + (-wa10*SIG8A.x + wb10*SIG8A.y) + (-wa10*SIG9A.x - wb10*SIG9A.y) + (wc10*SIG10A.x - wd10*SIG10A.y);
+		data[clipThr+1] = SIG4A.s1 + (wc10*SIG4A.s3 - wd10*SIG4A.s2) +(-wa10*SIG4A.s5 - wb10*SIG4A.s4) + (-wa10*SIG4A.s7 + wb10*SIG4A.s6) + (wc10*SIG5A.y + wd10*SIG5A.x) + (SIG6A.y) + (wc10*SIG7A.y - wd10*SIG7A.x) + (-wa10*SIG8A.y - wb10*SIG8A.x) + (-wa10*SIG9A.y + wb10*SIG9A.x) +(wc10*SIG10A.y + wd10*SIG10A.x) ;
+
+
+	data[clipFou+0] = SIG4A.s0 + (-wc10*SIG4A.s2 + wd10*SIG4A.s3) 
+					+(-wa10*SIG4A.s4 - wb10*SIG4A.s5) 
+					+ (wa10*SIG4A.s6 - wb10*SIG4A.s7) 
+					+ (wc10*SIG5A.x + wd10*SIG5A.y) 
+					+ (-SIG6A.x) + (wc10*SIG7A.x - 	wd10*SIG7A.y) 
+					+ (wa10*SIG8A.x + wb10*SIG8A.y) 
+					+ (-wa10*SIG9A.x + wb10*SIG9A.y) 
+					+ (-wc10*SIG10A.x - wd10*SIG10A.y);
+	data[clipFou+1] = SIG4A.s1 + (-wc10*SIG4A.s3 - wd10*SIG4A.s2) 
+					+(-wa10*SIG4A.s5 + wb10*SIG4A.s4) 
+					+ (wa10*SIG4A.s7 + wb10*SIG4A.s6) 
+					+ (wc10*SIG5A.y - wd10*SIG5A.x) + (-SIG6A.y) 
+					+ (wc10*SIG7A.y + wd10*SIG7A.x) 
+					+ (wa10*SIG8A.y - wb10*SIG8A.x) 
+					+ (-wa10*SIG9A.y - wb10*SIG9A.x) 
+					+(-wc10*SIG10A.y + wd10*SIG10A.x) ;
+
+	data[clipFiv+0] = SIG4A.s0 + (-wa10*SIG4A.s2 + wb10*SIG4A.s3) 
+					+ (wc10*SIG4A.s4 - wd10*SIG4A.s5) 
+					+ (wc10*SIG4A.s6 + wd10*SIG4A.s7) 
+					+ (-wa10*SIG5A.x - wb10*SIG5A.y) 
+					+ (SIG6A.x) + (-wa10*SIG7A.x + 	wb10*SIG7A.y) 
+					+ (wc10*SIG8A.x - wd10*SIG8A.y) 
+					+ (wc10*SIG9A.x + wd10*SIG9A.y) 
+					+ (-wa10*SIG10A.x - wb10*SIG10A.y);
+	data[clipFiv+1] = SIG4A.s1 + (-wa10*SIG4A.s3 - wb10*SIG4A.s2) 
+					+ (wc10*SIG4A.s5 + wd10*SIG4A.s4) 
+					+ (wc10*SIG4A.s7 - wd10*SIG4A.s6) 
+					+ (-wa10*SIG5A.y + wb10*SIG5A.x) 
+					+ (SIG6A.y) + (-wa10*SIG7A.y - wb10*SIG7A.x) 
+					+ (wc10*SIG8A.y + wd10*SIG8A.x) 
+					+ (wc10*SIG9A.y - wd10*SIG9A.x) 
+					+(-wa10*SIG10A.y + wb10*SIG10A.x) ;
+
+		data[clipSix+0] = SIG4A.s0 + (-SIG4A.s2) + SIG4A.s4 + (-SIG4A.s6) + SIG5A.x + (-SIG6A.x) + SIG7A.x + (-SIG8A.x) + SIG9A.x + (-SIG10A.x);
+		data[clipSix+1] = SIG4A.s1 + (-SIG4A.s3) + SIG4A.s5 + (-SIG4A.s7) + SIG5A.y + (-SIG6A.y) + SIG7A.y + (-SIG8A.y) + SIG9A.y + (-SIG10A.y);
+
+		data[clipSev+0] = SIG4A.s0 + (-wa10*SIG4A.s2 - wb10*SIG4A.s3) +(wc10*SIG4A.s4 + wd10*SIG4A.s5) + (wc10*SIG4A.s6 - wd10*SIG4A.s7) + (-wa10*SIG5A.x + wb10*SIG5A.y) + (SIG6A.x) + (-wa10*SIG7A.x - wb10*SIG7A.y) + (wc10*SIG8A.x + wd10*SIG8A.y) + (wc10*SIG9A.x - wd10*SIG9A.y) + (-wa10*SIG10A.x + wb10*SIG10A.y);
+		data[clipSev+1] = SIG4A.s1 + (-wa10*SIG4A.s3 + wb10*SIG4A.s2) +(wc10*SIG4A.s5 - wd10*SIG4A.s4) + (wc10*SIG4A.s7 + wd10*SIG4A.s6) + (-wa10*SIG5A.y - wb10*SIG5A.x) + (SIG6A.y) + (-wa10*SIG7A.y + wb10*SIG7A.x) + (wc10*SIG8A.y - wd10*SIG8A.x) + (wc10*SIG9A.y + wd10*SIG9A.x) +(-wa10*SIG10A.y - wb10*SIG10A.x) ;
+
+
+		data[clipEight+0] = SIG4A.s0 + (-wc10*SIG4A.s2 - wd10*SIG4A.s3) +(-wa10*SIG4A.s4 + wb10*SIG4A.s5) + (wa10*SIG4A.s6 + wb10*SIG4A.s7) + (wc10*SIG5A.x - wd10*SIG5A.y) + (-SIG6A.x) + (wc10*SIG7A.x + wd10*SIG7A.y) + (wa10*SIG8A.x - wb10*SIG8A.y) + (-wa10*SIG9A.x - wb10*SIG9A.y) + (-wc10*SIG10A.x + wd10*SIG10A.y);
+		data[clipEight+1] = SIG4A.s1 + (-wc10*SIG4A.s3 + wd10*SIG4A.s2) +(-wa10*SIG4A.s5 -wb10*SIG4A.s4) + (wa10*SIG4A.s7 - wb10*SIG4A.s6) + (wc10*SIG5A.y + wd10*SIG5A.x) + (-SIG6A.y) + (wc10*SIG7A.y - wd10*SIG7A.x) + (wa10*SIG8A.y + wb10*SIG8A.x) + (-wa10*SIG9A.y + wb10*SIG9A.x) +(-wc10*SIG10A.y - wd10*SIG10A.x) ;
+
+
+		data[clipNine+0] = SIG4A.s0 + (wc10*SIG4A.s2 - wd10*SIG4A.s3) +(-wa10*SIG4A.s4 - wb10*SIG4A.s5) + (-wa10*SIG4A.s6 + wb10*SIG4A.s7) + (wc10*SIG5A.x + wd10*SIG5A.y) + (SIG6A.x) + (wc10*SIG7A.x - wd10*SIG7A.y) + (-wa10*SIG8A.x - wb10*SIG8A.y) + (-wa10*SIG9A.x + wb10*SIG9A.y) + (wc10*SIG10A.x + wd10*SIG10A.y);
+		data[clipNine+1] = SIG4A.s1 + (wc10*SIG4A.s3 + wd10*SIG4A.s2) +(-wa10*SIG4A.s5 + wb10*SIG4A.s4) + (-wa10*SIG4A.s7 - wb10*SIG4A.s6) + (wc10*SIG5A.y - wd10*SIG5A.x) + (SIG6A.y) + (wc10*SIG7A.y + wd10*SIG7A.x) + (-wa10*SIG8A.y + wb10*SIG8A.x) + (-wa10*SIG9A.y - wb10*SIG9A.x) +(wc10*SIG10A.y - wd10*SIG10A.x) ;
+
+
+		data[clipTen+0] = SIG4A.s0 + (wa10*SIG4A.s2 - wb10*SIG4A.s3) +(wc10*SIG4A.s4 - wd10*SIG4A.s5) + (-wc10*SIG4A.s6 - wd10*SIG4A.s7) + (-wa10*SIG5A.x - wb10*SIG5A.y) + (-SIG6A.x) + (-wa10*SIG7A.x + wb10*SIG7A.y) + (-wc10*SIG8A.x + wd10*SIG8A.y) + (wc10*SIG9A.x + wd10*SIG9A.y) + (wa10*SIG10A.x + wb10*SIG10A.y);
+		data[clipTen+1] = SIG4A.s1 + (wa10*SIG4A.s3 + wb10*SIG4A.s2) +(wc10*SIG4A.s5 + wd10*SIG4A.s4) + (-wc10*SIG4A.s7 + wd10*SIG4A.s6) + (-wa10*SIG5A.y + wb10*SIG5A.x) + (-SIG6A.y) + (-wa10*SIG7A.y - wb10*SIG7A.x) + (-wc10*SIG8A.y - wd10*SIG8A.x) + (wc10*SIG9A.y - wd10*SIG9A.x) +(wa10*SIG10A.y - wb10*SIG10A.x) ;
+	
+	#if 0 // Debug code
+	data[clipOne+0] = 11;//kIndex;
+	data[clipOne+1] = 11;//yIndex;
+	data[clipTwo+0] = 22;//kIndex;
+	data[clipTwo+1] = 22;//yIndex;
+	data[clipThr+0] = 33;//kIndex;
+	data[clipThr+1] = 33;//yIndex;
+	data[clipFou+0] = 44;//kIndex;
+	data[clipFou+1] = 44;//yIndex;
+	data[clipFiv+0] = 55;//kIndex;
+	data[clipFiv+1] = 55;//yIndex;
+	data[clipSix+0] = 66;//kIndex;
+	data[clipSix+1] = 66;//yIndex;
+	data[clipSev+0] = 77;//kIndex;
+	data[clipSev+1] = 77;//yIndex;
+	data[clipEight+0] = 88;//kIndex;
+	data[clipEight+1] = 88;//yIndex;
+	data[clipNine+0] = 99;//kIndex;
+	data[clipNine+1] = 99;//yIndex;
+	data[clipTen+0] = 100;//kIndex;
+	data[clipTen+1] = 100;//yIndex;
+	#endif
+#endif //end correct
+}
+
+
 __kernel void DIT8C2C(	__global double *data, 
 						__global double2 *twiddle,
 						const int size, unsigned int stage,
@@ -207,17 +665,8 @@ __kernel void DIT8C2C(	__global double *data,
 {
 	int idX = get_global_id(0);
 
-	int powMaxLvl = 4;
-	int powLevels = stage / powMaxLvl;
-	int powRemain = stage % powMaxLvl;
-	int powX = 1;
-	int powXm1 = 1;
-	int x;
-	for (x = 0; x < powLevels; x++) {
-		powX *= pow(8.0f,powMaxLvl);
-	}
-	powX *= pow(8.0f,powRemain);
-	powXm1 = powX/8;
+	int powX = (8.,stage,4);
+	int powXm1 = powX/8;
 
 	int clipOne, clipTwo, clipThr, clipFou, clipFiv, clipSix, clipSev, clipEig;
 	int yIndex, kIndex;
@@ -457,72 +906,53 @@ __kernel void DIT8C2C(	__global double *data,
 }
 
 __kernel void DIT2C2CM(	__global double *data,
-						const int facX, const int facY,
+						const int x, const int y,
 						unsigned int stage,
 						unsigned int dir,
 						unsigned int type) 
 {
-	#if 0
 	int idX = get_global_id(0);
 	int idY = get_global_id(1);
+
+	int powX = topePow(2., stage, 11);
+	int powXm1 = powX/2;
+
+	int clipStart, clipEnd;
+	int yIndex, kIndex;
 
 	int BASE 	= 0;
 	int STRIDE 	= 1;
 
-	#if 1
-	int powMaxLvl = 11;
-	int powLevels = stage / powMaxLvl;
-	int powRemain = stage % powMaxLvl;
-	int powX = 1;
-	int powXm1 = 1;
-	int xx;
-	for (xx = 0; xx < powLevels; xx++) {
-		powX *= pow(2.0f,powMaxLvl);
-	}
-	powX *= pow(2.0f,powRemain);
-	powXm1 = powX/2;
-	#endif
-	#if 0
-	int powX = exp2(log2(2.)*stage);
-	int powXm1 = powX/2;
-	#endif
-
-	int yIndex, kIndex, clipStart, clipEnd, coeffUse;
-	double2 clSet1;
-	
 	switch(type)
 	{
-		case 1: BASE 		= idY*x; 
+		case 0: BASE 		= idY*x; 
 				yIndex 		= idX / powXm1;
-				kIndex 		= idX % powXm1;	
-				coeffUse 	= kIndex * (x / powX);
+				kIndex 		= idX % powXm1;
 				break;
-		case 2: BASE 		= idX; 
+		case 1: BASE 		= idX; 
 				STRIDE 		= x; 
 				yIndex 		= idY / powXm1;
 				kIndex 		= idY % powXm1;
-				coeffUse 	= kIndex * (y / powX);
 				break;
 	}
 
-	clipStart 	= 2 * (BASE+STRIDE*(kIndex + yIndex * powX));
-	clipEnd 	= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + powXm1));
+	clipStart 	= 2*(BASE+STRIDE*(kIndex + yIndex * powX));
+	clipEnd 	= 2*(BASE+STRIDE*(kIndex + yIndex * powX + powXm1));
 
-	clSet1.x 	= cos(two*CLPI*(coeffUse/2)/xR);
-	clSet1.y 	= sin(two*CLPI*(coeffUse/2)/xR);
+	double2 clSet1;
+	clSet1.x 	= cos(CLPT*kIndex/powX);
+	clSet1.y 	= sin(CLPT*kIndex/powX);
+	if (dir == 0) clSet1.y *= -1;
 
 	double4 LOC = (double4)(	data[clipStart + 0],	data[clipStart + 1],
 								data[clipEnd + 0],		data[clipEnd + 1]);
-	double4 FIN = (double4)(	LOC.x + LOC.z * clSet1.x - LOC.w * clSet1.y,
-								LOC.y + LOC.w * clSet1.x + LOC.z * clSet1.y,
-								LOC.x - LOC.z * clSet1.x + LOC.w * clSet1.y,
-								LOC.y - LOC.w * clSet1.x - LOC.z * clSet1.y);
+
+	double4 FIN = rad2(LOC,clSet1);
 
 	data[clipStart + 0] = FIN.x;
 	data[clipStart + 1] = FIN.y;
 	data[clipEnd + 0] 	= FIN.z;
 	data[clipEnd + 1] 	= FIN.w;
-	#endif
 }
 
 __kernel void DIT7C2C(
@@ -533,22 +963,11 @@ __kernel void DIT7C2C(
 {
 #if 1 // correct
 	int idX = get_global_id(0);
-	int powMaxLvl = 11;
-	int powLevels = stage / powMaxLvl;
-	int powRemain = stage % powMaxLvl;
-	int powX = 1;
-	int powXm1 = 1;
-	int x;
-	for (x = 0; x < powLevels; x++) {
-		powX *= pow(5.0,powMaxLvl);
-	}
-	powX *= pow(7.0,powRemain);
-	powXm1 = powX/7;
-	#if 0
-	int powX = exp2(log2(5.)*stage);
-	int powXm1 = powX/5;
-	#endif       
+
+	int powX = topePow(7.,stage,11);
+	int powXm1 = powX/7;
 	// x =pow(5.0,2)=25 whereas x=pow(5.0f,2)=24	
+	//
 	int clipOne, clipTwo, clipThr, clipFou, clipFiv, clipSix, clipSev;
 	int yIndex, kIndex;
 	yIndex = idX / powXm1;
@@ -571,7 +990,6 @@ __kernel void DIT7C2C(
 	double2 SIG6A = (double2)(	data[clipSix+0],data[clipSix+1]);
 	double2 SIG7A = (double2)(	data[clipSev+0],data[clipSev+1]);
 
-	int coeffUse = kIndex * (size / powX);
 	double2 clSet2, clSet3, clSet4, clSet5, clSet6, clSet7, temp2;
 	
 	if (kIndex!=0) {
@@ -725,21 +1143,9 @@ __kernel void DIT5C2C(
 {
 #if 1 // correct
 	int idX = get_global_id(0);
-	int powMaxLvl = 11;
-	int powLevels = stage / powMaxLvl;
-	int powRemain = stage % powMaxLvl;
-	int powX = 1;
-	int powXm1 = 1;
-	int x;
-	for (x = 0; x < powLevels; x++) {
-		powX *= pow(5.0,powMaxLvl);
-	}
-	powX *= pow(5.0,powRemain);
-	powXm1 = powX/5;
-	#if 0
-	int powX = exp2(log2(5.)*stage);
+
+	int powX = topePow(5.,stage,11);
 	int powXm1 = powX/5;
-	#endif       
 	// x =pow(5.0,2)=25 whereas x=pow(5.0f,2)=24
 	
 	int clipOne, clipTwo, clipThr, clipFou, clipFiv;
@@ -760,7 +1166,6 @@ __kernel void DIT5C2C(
 					data[clipFou+0],data[clipFou+1]);
 	double2 SIG5A = (double2)(	data[clipFiv+0],data[clipFiv+1]);
 
-	int coeffUse = kIndex * (size / powX);
 	double2 clSet2, clSet3, clSet4, clSet5,temp2;
 	
 	if (kIndex!=0) {
@@ -1361,8 +1766,6 @@ __kernel void DIT3C2C(
 					data[clipTwo+0],data[clipTwo+1]);
 	double2 SIG3B =(double2)(	data[clipThr+0],data[clipThr+1]);
 
-	int coeffUse = kIndex * (size / powX);
-	
 	double2 clSet2, clSet3,temp2;
 	
 	if (kIndex!=0) {
@@ -1401,11 +1804,79 @@ __kernel void DIT3C2C(
 }
 
 __kernel void DIT3C2CM(	__global double *data,
-						const int facX, const int facY,
+						const int x, const int y,
 						unsigned int stage,
 						unsigned int dir,
 						unsigned int type) 
 {
+	int idX = get_global_id(0);
+	int idY = get_global_id(1);
+
+	int powX = topePow(3., stage, 11);
+	int powXm1 = powX/3;
+
+	int clipOne, clipTwo, clipThr;
+	int yIndex, kIndex;
+
+	int BASE 	= 0;
+	int STRIDE 	= 1;
+
+	switch(type)
+	{
+		case 0: BASE 		= idY*x; 
+				yIndex 		= idX / powXm1;
+				kIndex 		= idX % powXm1;
+				break;
+		case 1: BASE 		= idX; 
+				STRIDE 		= x; 
+				yIndex 		= idY / powXm1;
+				kIndex 		= idY % powXm1;
+				break;
+	}
+
+	clipOne = 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 0 * powXm1));
+	clipTwo = 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 1 * powXm1));
+	clipThr	= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 2 * powXm1));
+
+	double2 TEMPC;
+	double4 SIG3A = (double4)(	data[clipOne+0],data[clipOne+1],
+								data[clipTwo+0],data[clipTwo+1]);
+	double2 SIG3B = (double2)(	data[clipThr+0],data[clipThr+1]);
+
+	double2 clSet2, clSet3, temp2;
+	
+	if (kIndex!=0) {
+		clSet2.x =  cos(CLPT*kIndex/powX);
+		clSet2.y = -sin(CLPT*kIndex/powX);
+		if (dir == 0) clSet2.y *= -1;
+		TEMPC.x = SIG3A.s2 * clSet2.x - SIG3A.s3 * clSet2.y;
+		TEMPC.y = SIG3A.s2 * clSet2.y + SIG3A.s3 * clSet2.x;
+		SIG3A.s2 = TEMPC.x;
+		SIG3A.s3 = TEMPC.y;
+		clSet3.x = cos(2*CLPT*kIndex/powX);
+		clSet3.y = -sin(2*CLPT*kIndex/powX);
+		if (dir == 0) clSet3.y *= -1;
+		TEMPC.x = SIG3B.x * clSet3.x - SIG3B.y * clSet3.y;
+		TEMPC.y = SIG3B.x * clSet3.y + SIG3B.y * clSet3.x;
+		SIG3B.x=TEMPC.x;
+		SIG3B.y=TEMPC.y;
+		
+	}	
+	data[clipOne+0] = SIG3A.s0 + SIG3A.s2 + SIG3B.x;
+	data[clipOne+1] = SIG3A.s1 + SIG3A.s3 + SIG3B.y;
+	
+	data[clipTwo+0] = 
+		SIG3A.s0 + (-0.5*SIG3A.s2 + 0.866* SIG3A.s3) 
+		+(-0.5*SIG3B.x - 0.866*SIG3B.y);
+	data[clipTwo+1] = 
+		SIG3A.s1 + (-0.866*SIG3A.s2 - 0.5 * SIG3A.s3) 
+		+(0.866*SIG3B.x - 0.5*SIG3B.y);
+	data[clipThr+0] = 
+		SIG3A.s0 + (-0.5*SIG3A.s2 - 0.866* SIG3A.s3) 
+		+(-0.5*SIG3B.x + 0.866*SIG3B.y);
+	data[clipThr+1] = 
+		SIG3A.s1 + (0.866*SIG3A.s2 - 0.5* SIG3A.s3) 
+		+(-0.866*SIG3B.x - 0.5*SIG3B.y);
 }
 
 __kernel void DIT4C2CM(	__global double *data,
@@ -1417,24 +1888,8 @@ __kernel void DIT4C2CM(	__global double *data,
 	int idX = get_global_id(0);
 	int idY = get_global_id(1);
 
-	#if 1
-	#if 1
-	int powMaxLvl = 7;
-	int powLevels = stage / powMaxLvl;
-	int powRemain = stage % powMaxLvl;
-	int powX = 1;
-	int powXm1 = 1;
-	int xx;
-	for (xx = 0; xx < powLevels; xx++) {
-		powX *= pow(4.0f,powMaxLvl);
-	}
-	powX *= pow(4.0f,powRemain);
-	powXm1 = powX/4;
-	#endif
-	#if 0
-	int powX = exp2(log2(4.)*stage);
+	int powX = topePow(4., stage, 7);
 	int powXm1 = powX/4;
-	#endif
 
 	int clipOne, clipTwo, clipThr, clipFou, yIndex, kIndex, coeffUse;
 	
@@ -1521,31 +1976,528 @@ __kernel void DIT4C2CM(	__global double *data,
 	data[clipFou+0] = 44;
 	data[clipFou+1] = 0;
 	#endif
-	#endif
 }
 
 __kernel void DIT5C2CM(	__global double *data,
-						const int facX, const int facY,
+						const int x, const int y,
 						unsigned int stage,
 						unsigned int dir,
 						unsigned int type) 
 {
+	int idX = get_global_id(0);
+	int idY = get_global_id(1);
+
+	int powX = topePow(5.,stage,11);
+	int powXm1 = powX/5;
+
+	int clipOne, clipTwo, clipThr, clipFou, clipFiv;
+
+	int BASE 	= 0;
+	int STRIDE 	= 1;
+
+	int yIndex, kIndex;
+
+	switch(type)
+	{
+		case 0: BASE 		= idY*x; 
+				yIndex 		= idX / powXm1;
+				kIndex 		= idX % powXm1;
+				break;
+		case 1: BASE 		= idX; 
+				STRIDE 		= x; 
+				yIndex 		= idY / powXm1;
+				kIndex 		= idY % powXm1;
+				break;
+	}
+
+	clipOne 	= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 0 * powXm1));
+	clipTwo 	= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 1 * powXm1));
+	clipThr		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 2 * powXm1));
+	clipFou		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 3 * powXm1));
+	clipFiv		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 4 * powXm1));
+	
+	double2 TEMPC;
+	double8 SIG4A = (double8)(	data[clipOne+0],data[clipOne+1],
+					data[clipTwo+0],data[clipTwo+1],
+					data[clipThr+0],data[clipThr+1],
+					data[clipFou+0],data[clipFou+1]);
+	double2 SIG5A = (double2)(	data[clipFiv+0],data[clipFiv+1]);
+
+	double2 clSet2, clSet3, clSet4, clSet5,temp2;
+	
+	if (kIndex!=0) {
+		clSet2.x =  cos(CLPT*kIndex/powX);
+		clSet2.y = -sin(CLPT*kIndex/powX);
+		if (dir == 0) clSet2.y *= -1;
+		TEMPC.x = SIG4A.s2 * clSet2.x - SIG4A.s3 * clSet2.y;
+		TEMPC.y = SIG4A.s2 * clSet2.y + SIG4A.s3 * clSet2.x;
+		SIG4A.s2 = TEMPC.x;
+		SIG4A.s3 = TEMPC.y;
+		clSet3.x = cos(2*CLPT*kIndex/powX);
+		clSet3.y = -sin(2*CLPT*kIndex/powX);
+		if (dir == 0) clSet3.y *= -1;
+		TEMPC.x = SIG4A.s4 * clSet3.x - SIG4A.s5 * clSet3.y;
+		TEMPC.y = SIG4A.s4 * clSet3.y + SIG4A.s5 * clSet3.x;
+		SIG4A.s4 = TEMPC.x;
+		SIG4A.s5 = TEMPC.y;
+		clSet4.x = cos(3*CLPT*kIndex/powX);
+		clSet4.y = -sin(3*CLPT*kIndex/powX);
+		if (dir == 0) clSet4.y *= -1;
+		TEMPC.x = SIG4A.s6 * clSet4.x - SIG4A.s7 * clSet4.y;
+		TEMPC.y = SIG4A.s6 * clSet4.y + SIG4A.s7 * clSet4.x;
+		SIG4A.s6 = TEMPC.x;
+		SIG4A.s7 = TEMPC.y;
+		clSet5.x = cos(4*CLPT*kIndex/powX);
+		clSet5.y = -sin(4*CLPT*kIndex/powX);
+		if (dir == 0) clSet5.y *= -1;
+		TEMPC.x = SIG5A.x * clSet5.x - SIG5A.y * clSet5.y;
+		TEMPC.y = SIG5A.x * clSet5.y + SIG5A.y * clSet5.x;
+		SIG5A.x = TEMPC.x;
+		SIG5A.y = TEMPC.y;
+	}	
+
+	data[clipOne+0] = SIG4A.s0 + SIG4A.s2 + SIG4A.s4 + SIG4A.s6 + SIG5A.x;
+	data[clipOne+1] = SIG4A.s1 + SIG4A.s3 + SIG4A.s5 + SIG4A.s7 + SIG5A.y;
+	data[clipTwo+0] = SIG4A.s0 + (wa5*SIG4A.s2 + wb5*SIG4A.s3) 
+					+(-wc5*SIG4A.s4 + wd5*SIG4A.s5) + (-wc5*SIG4A.s6 
+					- wd5*SIG4A.s7)+(wa5*SIG5A.x - 	wb5*SIG5A.y);
+	data[clipTwo+1] = SIG4A.s1 + (wa5*SIG4A.s3 - wb5*SIG4A.s2)
+					+(-wc5*SIG4A.s5 - wd5*SIG4A.s4) + (-wc5*SIG4A.s7 +
+					wd5*SIG4A.s6)+(wa5*SIG5A.y + wb5*SIG5A.x);
+	data[clipThr+0] = SIG4A.s0 + (-wc5*SIG4A.s2 + wd5*SIG4A.s3)
+					+(wa5*SIG4A.s4 - wb5*SIG4A.s5) + (wa5*SIG4A.s6 +
+					wb5*SIG4A.s7)+(-wc5*SIG5A.x - wd5*SIG5A.y); 
+	data[clipThr+1] = SIG4A.s1 + (-wc5*SIG4A.s3 - wd5*SIG4A.s2) 
+					+(wa5*SIG4A.s5 + wb5*SIG4A.s4) + (wa5*SIG4A.s7 
+					- wb5*SIG4A.s6)+(-wc5*SIG5A.y +	wd5*SIG5A.x);
+	data[clipFou+0] = SIG4A.s0 + (-wc5*SIG4A.s2 - wd5*SIG4A.s3) 
+					+(wa5*SIG4A.s4 + wb5*SIG4A.s5) + (wa5*SIG4A.s6 
+					- wb5*SIG4A.s7)+(-wc5*SIG5A.x + wd5*SIG5A.y);
+	data[clipFou+1] = SIG4A.s1 + (-wc5*SIG4A.s3 + wd5*SIG4A.s2) 
+					+(wa5*SIG4A.s5 - wb5*SIG4A.s4) + (wa5*SIG4A.s7 
+					+ wb5*SIG4A.s6)+(-wc5*SIG5A.y - wd5*SIG5A.x);
+	data[clipFiv+0] = SIG4A.s0 + (wa5*SIG4A.s2 - wb5*SIG4A.s3) 
+					+(-wc5*SIG4A.s4 - wd5*SIG4A.s5) + (-wc5*SIG4A.s6 
+					+ wd5*SIG4A.s7)+(wa5*SIG5A.x + 	wb5*SIG5A.y);
+	data[clipFiv+1] = SIG4A.s1 + (wa5*SIG4A.s3 + wb5*SIG4A.s2) 
+					+(-wc5*SIG4A.s5 + wd5*SIG4A.s4) + (-wc5*SIG4A.s7 
+					- wd5*SIG4A.s6)+(wa5*SIG5A.y - wb5*SIG5A.x);
+
+	#if 0 // Debug code
+	data[clipOne+0] = 11;//kIndex;
+	data[clipOne+1] = 111;//yIndex;
+	data[clipTwo+0] = 22;//kIndex;
+	data[clipTwo+1] = 222;//yIndex;
+	data[clipThr+0] = 33;//kIndex;
+	data[clipThr+1] = 333;//yIndex;
+	data[clipFou+0] = 44;//kIndex;
+	data[clipFou+1] = 444;//yIndex;
+	data[clipFiv+0] = 55;//kIndex;
+	data[clipFiv+1] = 555;//yIndex;
+	#endif
 }
 
 __kernel void DIT7C2CM(	__global double *data,
-						const int facX, const int facY,
+						const int x, const int y,
 						unsigned int stage,
 						unsigned int dir,
 						unsigned int type) 
 {
+	int idX = get_global_id(0);
+	int idY = get_global_id(1);
+
+	int powX = topePow(7.,stage,11);
+	int powXm1 = powX/7;
+	
+	int clipOne, clipTwo, clipThr, clipFou, clipFiv, clipSix, clipSev;
+	int yIndex, kIndex;
+
+	int BASE 	= 0;
+	int STRIDE 	= 1;
+
+	switch(type)
+	{
+		case 0: BASE 		= idY*x; 
+				yIndex 		= idX / powXm1;
+				kIndex 		= idX % powXm1;
+				break;
+		case 1: BASE 		= idX; 
+				STRIDE 		= x; 
+				yIndex 		= idY / powXm1;
+				kIndex 		= idY % powXm1;
+				break;
+	}
+
+	clipOne 	= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 0 * powXm1));
+	clipTwo 	= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 1 * powXm1));
+	clipThr		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 2 * powXm1));
+	clipFou		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 3 * powXm1));
+	clipFiv		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 4 * powXm1));
+	clipSix		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 5 * powXm1));
+	clipSev		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 6 * powXm1));
+	
+	double2 TEMPC;
+	double8 SIG4A = (double8)(	data[clipOne+0],data[clipOne+1],
+					data[clipTwo+0],data[clipTwo+1],
+					data[clipThr+0],data[clipThr+1],
+					data[clipFou+0],data[clipFou+1]);
+	double2 SIG5A = (double2)(	data[clipFiv+0],data[clipFiv+1]);
+	double2 SIG6A = (double2)(	data[clipSix+0],data[clipSix+1]);
+	double2 SIG7A = (double2)(	data[clipSev+0],data[clipSev+1]);
+
+	double2 clSet2, clSet3, clSet4, clSet5, clSet6, clSet7, temp2;
+	
+	if (kIndex!=0) {
+		
+		clSet2.x =  cos(CLPT*kIndex/powX);
+		clSet2.y = -sin(CLPT*kIndex/powX);
+		if (dir == 0) clSet2.y *= -1;
+		TEMPC.x = SIG4A.s2 * clSet2.x - SIG4A.s3 * clSet2.y;
+		TEMPC.y = SIG4A.s2 * clSet2.y + SIG4A.s3 * clSet2.x;
+		SIG4A.s2 = TEMPC.x;
+		SIG4A.s3 = TEMPC.y;
+	
+		clSet3.x = cos(2*CLPT*kIndex/powX);
+		clSet3.y = -sin(2*CLPT*kIndex/powX);
+		if (dir == 0) clSet3.y *= -1;
+		TEMPC.x = SIG4A.s4 * clSet3.x - SIG4A.s5 * clSet3.y;
+		TEMPC.y = SIG4A.s4 * clSet3.y + SIG4A.s5 * clSet3.x;
+		SIG4A.s4 = TEMPC.x;
+		SIG4A.s5 = TEMPC.y;
+
+		clSet4.x = cos(3*CLPT*kIndex/powX);
+		clSet4.y = -sin(3*CLPT*kIndex/powX);
+		if (dir == 0) clSet4.y *= -1;
+		TEMPC.x = SIG4A.s6 * clSet4.x - SIG4A.s7 * clSet4.y;
+		TEMPC.y = SIG4A.s6 * clSet4.y + SIG4A.s7 * clSet4.x;
+		SIG4A.s6 = TEMPC.x;
+		SIG4A.s7 = TEMPC.y;
+	
+		clSet5.x = cos(4*CLPT*kIndex/powX);
+		clSet5.y = -sin(4*CLPT*kIndex/powX);
+		if (dir == 0) clSet5.y *= -1;
+		TEMPC.x = SIG5A.x * clSet5.x - SIG5A.y * clSet5.y;
+		TEMPC.y = SIG5A.x * clSet5.y + SIG5A.y * clSet5.x;
+		SIG5A.x = TEMPC.x;
+		SIG5A.y = TEMPC.y;
+
+		clSet6.x = cos(5*CLPT*kIndex/powX);
+		clSet6.y = -sin(5*CLPT*kIndex/powX);
+		if (dir == 0) clSet6.y *= -1;
+		TEMPC.x = SIG6A.x * clSet6.x - SIG6A.y * clSet6.y;
+		TEMPC.y = SIG6A.x * clSet6.y + SIG6A.y * clSet6.x;
+		SIG6A.x = TEMPC.x;
+		SIG6A.y = TEMPC.y;
+
+		clSet7.x = cos(6*CLPT*kIndex/powX);
+		clSet7.y = -sin(6*CLPT*kIndex/powX);
+		if (dir == 0) clSet7.y *= -1;
+		TEMPC.x = SIG7A.x * clSet7.x - SIG7A.y * clSet7.y;
+		TEMPC.y = SIG7A.x * clSet7.y + SIG7A.y * clSet7.x;
+		SIG7A.x = TEMPC.x;
+		SIG7A.y = TEMPC.y;
+	}	
+	
+	data[clipOne+0] = SIG4A.s0 + SIG4A.s2 + SIG4A.s4 + SIG4A.s6 
+					+ SIG5A.x + SIG6A.x + SIG7A.x;
+	data[clipOne+1] = SIG4A.s1 + SIG4A.s3 + SIG4A.s5 + SIG4A.s7 
+					+ SIG5A.y + SIG6A.y + SIG7A.y;
+	data[clipTwo+0] = SIG4A.s0 + (wa7*SIG4A.s2 + wb7*SIG4A.s3) 
+					+(-wc7*SIG4A.s4 + wd7*SIG4A.s5) 
+					+ (-we7*SIG4A.s6 + wf7*SIG4A.s7) 
+					+ (-we7*SIG5A.x - wf7*SIG5A.y) 
+					+ (-wc7*SIG6A.x - wd7*SIG6A.y) 
+					+ (wa7*SIG7A.x - wb7*SIG7A.y);
+	data[clipTwo+1] = SIG4A.s1 + (wa7*SIG4A.s3 - wb7*SIG4A.s2) 
+					+(-wc7*SIG4A.s5 - wd7*SIG4A.s4) 
+					+ (-we7*SIG4A.s7 - wf7*SIG4A.s6) 
+					+ (-we7*SIG5A.y + wf7*SIG5A.x) 
+					+ (-wc7*SIG6A.y + wd7*SIG6A.x) 
+					+ (wa7*SIG7A.y + wb7*SIG7A.x);
+	data[clipThr+0] = SIG4A.s0 + (-wc7*SIG4A.s2 + wd7*SIG4A.s3) 
+					+(-we7*SIG4A.s4 - wf7*SIG4A.s5) 
+					+ (wa7*SIG4A.s6 - wb7*SIG4A.s7) 
+					+ (wa7*SIG5A.x + wb7*SIG5A.y) 
+					+ (-we7*SIG6A.x + wf7*SIG6A.y) 
+					+ (-wc7*SIG7A.x - wd7*SIG7A.y);
+	data[clipThr+1] = SIG4A.s1 + (-wc7*SIG4A.s3 - wd7*SIG4A.s2) 
+					+(-we7*SIG4A.s5 + wf7*SIG4A.s4) 
+					+ (wa7*SIG4A.s7 + wb7*SIG4A.s6) 
+					+ (wa7*SIG5A.y - wb7*SIG5A.x) 
+					+ (-we7*SIG6A.y - wf7*SIG6A.x) 
+					+ (-wc7*SIG7A.y + wd7*SIG7A.x);
+	data[clipFou+0] = SIG4A.s0 + (-we7*SIG4A.s2 + wf7*SIG4A.s3) 
+					+(wa7*SIG4A.s4 - wb7*SIG4A.s5) 
+					+ (-wc7*SIG4A.s6 + wd7*SIG4A.s7) 
+					+ (-wc7*SIG5A.x - wd7*SIG5A.y) 
+					+ (wa7*SIG6A.x + wb7*SIG6A.y) 
+					+ (-we7*SIG7A.x - wf7*SIG7A.y);
+	data[clipFou+1] = SIG4A.s1 + (-we7*SIG4A.s3 - wf7*SIG4A.s2) 
+					+(wa7*SIG4A.s5 + wb7*SIG4A.s4) 
+					+ (-wc7*SIG4A.s7 - wd7*SIG4A.s6) 
+					+ (-wc7*SIG5A.y + wd7*SIG5A.x) 
+					+ (wa7*SIG6A.y - wb7*SIG6A.x) 
+					+ (-we7*SIG7A.y + wf7*SIG7A.x);
+	data[clipFiv+0] = SIG4A.s0 + (-we7*SIG4A.s2 - wf7*SIG4A.s3) 
+					+(wa7*SIG4A.s4 + wb7*SIG4A.s5) 
+					+ (-wc7*SIG4A.s6 - wd7*SIG4A.s7) 
+					+ (-wc7*SIG5A.x + wd7*SIG5A.y) 
+					+ (wa7*SIG6A.x - wb7*SIG6A.y) 
+					+ (-we7*SIG7A.x + wf7*SIG7A.y);
+	data[clipFiv+1] = SIG4A.s1 + (-we7*SIG4A.s3 + wf7*SIG4A.s2) 
+					+(wa7*SIG4A.s5 - wb7*SIG4A.s4) 
+					+ (-wc7*SIG4A.s7 + wd7*SIG4A.s6) 
+					+ (-wc7*SIG5A.y - wd7*SIG5A.x) 
+					+ (wa7*SIG6A.y + wb7*SIG6A.x) 
+					+ (-we7*SIG7A.y - wf7*SIG7A.x);
+	data[clipSix+0] = SIG4A.s0 + (-wc7*SIG4A.s2 - wd7*SIG4A.s3) 
+					+(-we7*SIG4A.s4 + wf7*SIG4A.s5) 
+					+ (wa7*SIG4A.s6 + wb7*SIG4A.s7) 
+					+ (wa7*SIG5A.x - wb7*SIG5A.y) 
+					+ (-we7*SIG6A.x - wf7*SIG6A.y) 
+					+ (-wc7*SIG7A.x + wd7*SIG7A.y);
+	data[clipSix+1] = SIG4A.s1 + (-wc7*SIG4A.s3 + wd7*SIG4A.s2) 
+					+(-we7*SIG4A.s5 - wf7*SIG4A.s4) 
+					+ (wa7*SIG4A.s7 - wb7*SIG4A.s6) 
+					+ (wa7*SIG5A.y + wb7*SIG5A.x) 
+					+ (-we7*SIG6A.y + wf7*SIG6A.x) 
+					+ (-wc7*SIG7A.y - wd7*SIG7A.x);
+	data[clipSev+0] = SIG4A.s0 + (wa7*SIG4A.s2 - wb7*SIG4A.s3) 
+					+(-wc7*SIG4A.s4 - wd7*SIG4A.s5) 
+					+ (-we7*SIG4A.s6 - wf7*SIG4A.s7) 
+					+ (-we7*SIG5A.x + wf7*SIG5A.y) 
+					+ (-wc7*SIG6A.x + wd7*SIG6A.y) 
+					+ (wa7*SIG7A.x + wb7*SIG7A.y);
+	data[clipSev+1] = SIG4A.s1 + (wa7*SIG4A.s3 + wb7*SIG4A.s2) 
+					+(-wc7*SIG4A.s5 + wd7*SIG4A.s4) 
+					+ (-we7*SIG4A.s7 + wf7*SIG4A.s6) 
+					+ (-we7*SIG5A.y - wf7*SIG5A.x) 
+					+ (-wc7*SIG6A.y - wd7*SIG6A.x) 
+					+ (wa7*SIG7A.y - wb7*SIG7A.x);
+	#if 0 // Debug code
+	data[clipOne+0] = 11;//kIndex;
+	data[clipOne+1] = 111;//yIndex;
+	data[clipTwo+0] = 22;//kIndex;
+	data[clipTwo+1] = 222;//yIndex;
+	data[clipThr+0] = 33;//kIndex;
+	data[clipThr+1] = 333;//yIndex;
+	data[clipFou+0] = 44;//kIndex;
+	data[clipFou+1] = 444;//yIndex;
+	data[clipFiv+0] = 55;//kIndex;
+	data[clipFiv+1] = 555;//yIndex;
+	#endif
 }
 
 __kernel void DIT8C2CM(	__global double *data,
-						const int facX, const int facY,
+						const int x, const int y,
 						unsigned int stage,
 						unsigned int dir,
 						unsigned int type) 
 {
+	int idX = get_global_id(0);
+	int idY = get_global_id(1);
+
+	int powX = (8.,stage,4);
+	int powXm1 = powX/8;
+
+	int clipOne, clipTwo, clipThr, clipFou, clipFiv, clipSix, clipSev, clipEig;
+	int yIndex, kIndex;
+
+	int BASE 	= 0;
+	int STRIDE 	= 1;
+
+	switch(type)
+	{
+		case 0: BASE 		= idY*x; 
+				yIndex 		= idX / powXm1;
+				kIndex 		= idX % powXm1;
+				break;
+		case 1: BASE 		= idX; 
+				STRIDE 		= x; 
+				yIndex 		= idY / powXm1;
+				kIndex 		= idY % powXm1;
+				break;
+	}
+	
+	clipOne 	= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 0 * powXm1));
+	clipTwo 	= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 1 * powXm1));
+	clipThr		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 2 * powXm1));
+	clipFou		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 3 * powXm1));
+	clipFiv		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 4 * powXm1));
+	clipSix		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 5 * powXm1));
+	clipSev		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 6 * powXm1));
+	clipEig		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 7 * powXm1));
+
+	double2 CST;
+	double2 TMP;
+	double2 clSet1;
+	double16 SIGA = (double16)(	data[clipOne+0],data[clipOne+1],	// s0, s1
+								data[clipTwo+0],data[clipTwo+1],	// s2, s3
+								data[clipThr+0],data[clipThr+1],	// s4, s5
+								data[clipFou+0],data[clipFou+1],	// s6, s7
+								data[clipFiv+0],data[clipFiv+1],	// s8, s9
+								data[clipSix+0],data[clipSix+1],	// sa, sb
+								data[clipSev+0],data[clipSev+1],	// sc, sd
+								data[clipEig+0],data[clipEig+1]);	// se, sf
+
+	if (kIndex!=0) {
+		
+		clSet1.x =  cos(CLPT*kIndex/powX);
+		clSet1.y =  sin(CLPT*kIndex/powX);
+		if (dir == 0) clSet1.y *= -1;
+		TMP.x = SIGA.s8 * clSet1.x - SIGA.s9 * clSet1.y;
+		TMP.y = SIGA.s8 * clSet1.y + SIGA.s9 * clSet1.x;
+		SIGA.s8 = TMP.x;
+		SIGA.s9 = TMP.y;
+
+		clSet1.x =  cos(2*CLPT*kIndex/powX);
+		clSet1.y =  sin(2*CLPT*kIndex/powX);
+		if (dir == 0) clSet1.y *= -1;
+		TMP.x = SIGA.s4 * clSet1.x - SIGA.s5 * clSet1.y;
+		TMP.y = SIGA.s4 * clSet1.y + SIGA.s5 * clSet1.x;
+		SIGA.s4 = TMP.x;
+		SIGA.s5 = TMP.y;
+
+		clSet1.x =  cos(3*CLPT*kIndex/powX);
+		clSet1.y =  sin(3*CLPT*kIndex/powX);
+		if (dir == 0) clSet1.y *= -1;
+		TMP.x = SIGA.sc * clSet1.x - SIGA.sd * clSet1.y;
+		TMP.y = SIGA.sc * clSet1.y + SIGA.sd * clSet1.x;
+		SIGA.sc = TMP.x;
+		SIGA.sd = TMP.y;
+
+		clSet1.x =  cos(4*CLPT*kIndex/powX);
+		clSet1.y =  sin(4*CLPT*kIndex/powX);
+		if (dir == 0) clSet1.y *= -1;
+		TMP.x = SIGA.s2 * clSet1.x - SIGA.s3 * clSet1.y;
+		TMP.y = SIGA.s2 * clSet1.y + SIGA.s3 * clSet1.x;
+		SIGA.s2 = TMP.x;
+		SIGA.s3 = TMP.y;
+
+		clSet1.x =  cos(5*CLPT*kIndex/powX);
+		clSet1.y =  sin(5*CLPT*kIndex/powX);
+		if (dir == 0) clSet1.y *= -1;
+		TMP.x = SIGA.sa * clSet1.x - SIGA.sb * clSet1.y;
+		TMP.y = SIGA.sa * clSet1.y + SIGA.sb * clSet1.x;
+		SIGA.sa = TMP.x;
+		SIGA.sb = TMP.y;
+
+		clSet1.x =  cos(6*CLPT*kIndex/powX);
+		clSet1.y =  sin(6*CLPT*kIndex/powX);
+		if (dir == 0) clSet1.y *= -1;
+		TMP.x = SIGA.s6 * clSet1.x - SIGA.s7 * clSet1.y;
+		TMP.y = SIGA.s6 * clSet1.y + SIGA.s7 * clSet1.x;
+		SIGA.s6 = TMP.x;
+		SIGA.s7 = TMP.y;
+
+		clSet1.x =  cos(7*CLPT*kIndex/powX);
+		clSet1.y =  sin(7*CLPT*kIndex/powX);
+		if (dir == 0) clSet1.y *= -1;
+		TMP.x = SIGA.se * clSet1.x - SIGA.sf * clSet1.y;
+		TMP.y = SIGA.se * clSet1.y + SIGA.sf * clSet1.x;
+		SIGA.se = TMP.x;
+		SIGA.sf = TMP.y;
+	}	
+
+	double16 SIGB = (double16)(	SIGA.s0 + SIGA.s2,
+								SIGA.s1 + SIGA.s3,
+								SIGA.s0 - SIGA.s2,
+								SIGA.s1 - SIGA.s3,
+								SIGA.s4 + SIGA.s6,
+								SIGA.s5 + SIGA.s7,
+								SIGA.s4 - SIGA.s6,
+								SIGA.s5 - SIGA.s7,
+								SIGA.s8 + SIGA.sa,
+								SIGA.s9 + SIGA.sb,
+								SIGA.s8 - SIGA.sa,
+								SIGA.s9 - SIGA.sb,
+								SIGA.sc + SIGA.se,
+								SIGA.sd + SIGA.sf,
+								SIGA.sc - SIGA.se,
+								SIGA.sd - SIGA.sf);
+
+	if (dir == 1) {
+		TMP = (double2)((SIGB.sa + SIGB.sb)*d707, (SIGB.sf - SIGB.se)*d707);
+		SIGB.sb = (SIGB.sb - SIGB.sa) * d707;
+		SIGB.sf = (SIGB.sf + SIGB.se) * -d707;
+		SIGB.sa = TMP.x;	
+		SIGB.se = TMP.y;
+		TMP.x	= SIGB.s7; SIGB.s7 = -SIGB.s6; SIGB.s6 = TMP.x; 
+	}
+	else if (dir == 0) {
+		TMP = (double2)((SIGB.sa - SIGB.sb)*d707, (SIGB.sf + SIGB.se)*-d707);
+		SIGB.sb = (SIGB.sb + SIGB.sa) * d707;
+		SIGB.sf = (SIGB.se - SIGB.sf) * d707;
+		SIGB.sa = TMP.x;
+		SIGB.se = TMP.y;
+		TMP.x 	= -SIGB.s7; SIGB.s7 = SIGB.s6; SIGB.s6 = TMP.x;
+	}
+
+	SIGA.s0 = SIGB.s0 + SIGB.s4;
+	SIGA.s1 = SIGB.s1 + SIGB.s5;
+	SIGA.s2 = SIGB.s2 + SIGB.s6;
+	SIGA.s3 = SIGB.s3 + SIGB.s7;
+	SIGA.s4 = SIGB.s0 - SIGB.s4;
+	SIGA.s5 = SIGB.s1 - SIGB.s5;
+	SIGA.s6 = SIGB.s2 - SIGB.s6;
+	SIGA.s7 = SIGB.s3 - SIGB.s7;
+	SIGA.s8 = SIGB.s8 + SIGB.sc;
+	SIGA.s9 = SIGB.s9 + SIGB.sd;
+	SIGA.sa = SIGB.sa + SIGB.se;
+	SIGA.sb = SIGB.sb + SIGB.sf;
+	if (dir == 1) {
+		SIGA.sc = SIGB.s9 - SIGB.sd;
+		SIGA.sd = SIGB.sc - SIGB.s8;
+		SIGA.se = SIGB.sb - SIGB.sf;
+		SIGA.sf = SIGB.se - SIGB.sa;
+	}
+	else if (dir == 0) {
+		SIGA.sc = SIGB.sd - SIGB.s9;
+		SIGA.sd = SIGB.s8 - SIGB.sc;
+		SIGA.se = SIGB.sf - SIGB.sb;
+		SIGA.sf = SIGB.sa - SIGB.se;
+	}
+
+	#if 1
+	data[clipOne+0] = SIGA.s0 + SIGA.s8;
+	data[clipOne+1] = SIGA.s1 + SIGA.s9;
+	data[clipTwo+0] = SIGA.s2 + SIGA.sa;
+	data[clipTwo+1] = SIGA.s3 + SIGA.sb;
+	data[clipThr+0] = SIGA.s4 + SIGA.sc;
+	data[clipThr+1] = SIGA.s5 + SIGA.sd;
+	data[clipFou+0] = SIGA.s6 + SIGA.se;
+	data[clipFou+1] = SIGA.s7 + SIGA.sf;
+	data[clipFiv+0] = SIGA.s0 - SIGA.s8;
+	data[clipFiv+1] = SIGA.s1 - SIGA.s9;
+	data[clipSix+0] = SIGA.s2 - SIGA.sa;
+	data[clipSix+1] = SIGA.s3 - SIGA.sb;
+	data[clipSev+0] = SIGA.s4 - SIGA.sc;
+	data[clipSev+1] = SIGA.s5 - SIGA.sd;
+	data[clipEig+0] = SIGA.s6 - SIGA.se; 
+	data[clipEig+1] = SIGA.s7 - SIGA.sf;
+	#endif
+	#if 0
+	data[clipOne+0] = 0;//
+	data[clipOne+1] = 0;
+	data[clipTwo+0] = 0;
+	data[clipTwo+1] = 0;
+	data[clipThr+0] = 0;
+	data[clipThr+1] = 0;
+	data[clipFou+0] = 0;
+	data[clipFou+1] = 0;
+	data[clipFiv+0] = 0;//
+	data[clipFiv+1] = 0;
+	data[clipSix+0] = 0;
+	data[clipSix+1] = 0;
+	data[clipSev+0] = 0;
+	data[clipSev+1] = 0;
+	data[clipEig+0] = idZ;
+	data[clipEig+1] = 0;
+	#endif
+	#if 0
+	data[2*(idZ*x*y+idY*x+idX)] = powX;
+	data[2*(idZ*x*y+idY*x+idX)+1] = 0;
+	#endif
 
 
 }
@@ -1654,21 +2606,8 @@ __kernel void DIT2C2C(	__global double *data,
 {
 	int idX = get_global_id(0);
 
-	#if 1
-	int powMaxLvl = 11;
-	int powLevels = stage / powMaxLvl;
-	int powRemain = stage % powMaxLvl;
-	int powX = 1;
-	int powXm1 = 1;
-	int x;
-	for (x = 0; x < powLevels; x++)	powX *= pow(2.0f,powMaxLvl);
-	powX *= pow(2.0f,powRemain);
-	powXm1 = powX/2;
-	#endif
-	#if 0
-	int powX = exp2(log2(2.)*stage);
+	int powX = topePow(2., stage, 11);
 	int powXm1 = powX/2;
-	#endif
 
 	int yIndex = idX / powXm1;
 	int kIndex = idX % powXm1;
@@ -1692,36 +2631,20 @@ __kernel void DIT2C2C(	__global double *data,
 		}
 	}
 	else {
-		clSet1.x 	= cos(2.*CLPI*(coeffUse/2)/size);
-		clSet1.y 	= sin(2.*CLPI*(coeffUse/2)/size);
+		clSet1.x 	= cos(CLPT*kIndex/powX);
+		clSet1.y 	= sin(CLPT*kIndex/powX);
 	}
 	if (dir == 0) clSet1.y *= -1;
 
 	double4 LOC = (double4)(	data[clipStart + 0],	data[clipStart + 1],
 								data[clipEnd + 0],		data[clipEnd + 1]);
-	double4 FIN = (double4)(	LOC.x + LOC.z * clSet1.x - LOC.w * clSet1.y,
-								LOC.y + LOC.w * clSet1.x + LOC.z * clSet1.y,
-								LOC.x - LOC.z * clSet1.x + LOC.w * clSet1.y,
-								LOC.y - LOC.w * clSet1.x - LOC.z * clSet1.y);
+
+	double4 FIN = rad2(LOC,clSet1);
 
 	data[clipStart + 0] = FIN.x;
 	data[clipStart + 1] = FIN.y;
 	data[clipEnd + 0] 	= FIN.z;
 	data[clipEnd + 1] 	= FIN.w;
-	#if 0	// Debug
-	if (quad == 0) {
-		[2*idX] = cos(two*CLPI*(coeffUse)/xR);
-		[2*idX+1] = -sin(two*CLPI*(coeffUse)/xR);
-		[2*xR/2+2*idX] = twiddle[2*coeffUse];
-		[2*xR/2+2*idX+1] = twiddle[2*coeffUse+1];
-	}
-	else if (quad == 1) {
-		[2*idX] = cos(two*CLPI*(coeffUse)/xR);
-		[2*idX+1] = -sin(two*CLPI*(coeffUse)/xR);
-		[2*xR/2+2*idX] = twiddle[2*buad+1];
-		[2*xR/2+2*idX+1] = -twiddle[2*buad];
-	}
-	#endif
 }
 
 __kernel void divide1D(	__global double2 *data, const int size)
@@ -1779,6 +2702,26 @@ __kernel void reversen( __global int *bitRev,
 						int logSize, 
 						int radix)
 {	
+	#if 1 //[WORKING FOR ALL]
+	int idX = get_global_id(0);
+	int locX = get_local_id(0);
+
+	int n = idX;
+
+	int j, i;
+	for (j = locX*logSize; j < locX*logSize+logSize; j++)
+	{
+		bitArray[j] = n % radix;
+		n = n/radix;
+	}	
+	int tempRev = 0;
+	for( j = locX*logSize+logSize-1, i = 0; j >= locX*logSize; j--, i++)
+	{
+		tempRev += bitArray[j] * topePow(radix,i,5);
+	}
+	bitRev[idX] = tempRev;
+	#endif
+
 	#if 0 /* not working for radix-3, working for radix-5] 
 		   * This is working (but check for extremely large sizes)
 		   */
@@ -1847,26 +2790,6 @@ __kernel void reversen( __global int *bitRev,
 		#endif
 	}
 	bitRev[idX] = subst;
-	#endif
-
-	#if 1 //[WORKING FOR ALL]
-	int idX = get_global_id(0);
-	int locX = get_local_id(0);
-
-	int n = idX;
-
-	int j, i;
-	for (j = locX*logSize; j < locX*logSize+logSize; j++)
-	{
-		bitArray[j] = n % radix;
-		n = n/radix;
-	}	
-	int tempRev = 0;
-	for( j = locX*logSize+logSize-1, i = 0; j >= locX*logSize; j--, i++)
-	{
-		tempRev += bitArray[j] * myPow(radix,i);
-	}
-	bitRev[idX] = tempRev;
 	#endif
 }
 

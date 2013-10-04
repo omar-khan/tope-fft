@@ -8,6 +8,9 @@ REQ = src/util.c src/fft1d.c src/fft3d.c src/fft2d.c src/checkers.c src/fft1d_mi
 OBJ = obj/util.o obj/fft1d.o obj/fft3d.o obj/fft2d.o obj/checkers.o obj/fft1d_mix.o
 
 topeFFT: $(REQ)
+	mkdir -p obj
+	mkdir -p lib
+	mkdir -p bin
 	$(CC) $(CFLAGS) -c -o obj/util.o src/util.c $(LDFLAGS)
 	$(CC) $(CFLAGS) -c -o obj/fft1d.o src/fft1d.c $(LDFLAGS) 
 	$(CC) $(CFLAGS) -c -o obj/fft1d_mix.o src/fft1d_mix.c $(LDFLAGS) 
