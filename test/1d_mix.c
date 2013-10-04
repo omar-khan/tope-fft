@@ -19,9 +19,11 @@
 void plotInGnuplot(double *d, fftw_complex *o, cufftDoubleComplex *c, int n) {
 	FILE *gplot = popen("gnuplot -persistent", "w");
 	int i;
+	#if 1 // Magnitude Plot
 	#if 1
-	#if 1
-	fprintf(gplot, "set multiplot layout 1,3\n");
+	fprintf(gplot, "set multiplot layout 2,3\n");
+	fprintf(gplot, "set log x\n");
+	fprintf(gplot, "set log y\n");
 	fprintf(gplot, "plot '-' title 'topeFFT' w l lw 3 lc rgb 'red'\n");
 	for (i = 0; i < n; i++)  
 		fprintf(gplot, "%lf\n", pow(pow(d[2*i],2)+pow(d[2*i+1],2),0.5));
@@ -39,6 +41,31 @@ void plotInGnuplot(double *d, fftw_complex *o, cufftDoubleComplex *c, int n) {
 	fprintf(gplot, "plot '-' title 'cuFFT' w l lw 3 lc rgb 'green'\n");
 	for (i = 0; i < n; i++) 
 		fprintf(gplot, "%lf\n", pow(pow(c[i].x,2)+pow(c[i].y,2),0.5));
+	fprintf(gplot, "e");
+	#endif
+	#endif
+	#if 1 // Phase Plot
+	#if 1
+	fprintf(gplot, "unset log x\n");
+	fprintf(gplot, "unset log y\n");
+	fprintf(gplot, "set origin 0,0\n");
+	fprintf(gplot, "plot '-' title 'topeFFT' w l lw 3 lc rgb 'red'\n");
+	for (i = 0; i < n; i++)  
+		fprintf(gplot, "%lf\n", atan(d[2*i+1]/d[2*i]));
+	fprintf(gplot, "e");
+	#endif
+	#if 1
+	fprintf(gplot, "set origin 0,0\n");
+	fprintf(gplot, "plot '-' title 'FFTW' w l lw 3 lc rgb 'blue'\n");
+	for (i = 0; i < n; i++)  
+		fprintf(gplot, "%lf\n", atan(o[i][1]/o[i][0])); 
+	fprintf(gplot, "e");
+	#endif
+	#if 1
+	fprintf(gplot, "set origin 0,0\n");
+	fprintf(gplot, "plot '-' title 'cuFFT' w l lw 3 lc rgb 'green'\n");
+	for (i = 0; i < n; i++) 
+		fprintf(gplot, "%lf\n", atan(c[i].y/c[i].x));
 	fprintf(gplot, "e");
 	#endif
 	#endif
@@ -142,11 +169,12 @@ int main(int argc, char *argv[])
 														plan.totalPreKernel), 
 									t_ns*1.0e-9, cuTime*10e-3);
 	#endif
+
 	#if 0
 	plotInGnuplot(data, out, dataLoca, N);
 	#endif
 	
-	#if 1 // Show Output
+	#if 0 // Show Output
 	for (i = 0; i < N; i++) {
 		printf("%lf:%lf\t", data[2*i], data[2*i+1]); 	// Tope
 		printf("%lf:%lf\n", out[i][0], out[i][1]); 		// FFTW

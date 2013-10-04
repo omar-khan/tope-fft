@@ -10,11 +10,13 @@
 #define FORWARD 1
 #define INVERSE 0
 
+#define $E 1e-15
+
 struct XtopePlan1D {
 	int length;
 	int *side;
 	int *bits;				// Max bits Required
-	int *log;
+	int *log; 				// for butterfly stages
 	int type;				// C2C/R2C etc.	
 	int *radix;
 	cl_kernel *kernel;		// butterfly kernel

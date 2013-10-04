@@ -4,7 +4,7 @@
 
 #define SUCCESS 0
 
-void clEnqueueNDRangeChecker(cl_int *err) {
+void clEnqueueNDRangeKernelChecker(cl_int *err) {
 	if (*err == CL_INVALID_PROGRAM_EXECUTABLE) fprintf(stderr,"Err (clEnqueueNDRange): No successfully built program executable available\n");
 	else if (*err == CL_INVALID_COMMAND_QUEUE) fprintf(stderr,"Err (clEnqueueNDRange): Okay so the command queue is not right\n");
 	else if (*err == CL_INVALID_KERNEL) fprintf(stderr,"Err (clEnqueueNDRange): Invalid Kernel Object\n");
