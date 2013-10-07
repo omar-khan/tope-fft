@@ -41,14 +41,14 @@ void Xtope1DExecMix( struct topeFFT *f,
 	t->totalPreKernel += profileThis(f->event);
 	
 	#if 0 // Debug Code
-//	int i, j;
-//	double *d = malloc(sizeof(double)*2*t->length);
+	int i, j;
+	double *d = malloc(sizeof(double)*2*t->length);
 	f->error = clEnqueueReadBuffer(	f->command_queue, t->data,
 								CL_TRUE, 0, t->dataSize, d, 
 								0, NULL, &f->event);
 	$CHECKERROR
-	for (j = 0; j < t->side[1]; j++) {
-		for (i = 0; i < t->side[0]; i++) {
+	for (i = 0; i < t->side[0]; i++) {
+		for (j = 0; j < t->side[1]; j++) {
 			printf("%.3lf:%.3lf\t", d[2*(j*t->side[0]+i)], 
 									d[2*(j*t->side[0]+i)+1]);
 		}
@@ -61,65 +61,64 @@ void Xtope1DExecMix( struct topeFFT *f,
 	switch(type)
 	{
 		case 0:
-			t->globalSize[1] = t->radix[1];
+			t->globalSize[1] = t->side[1];
 			t->localSize[1] = 1;
 			switch(t->radix[0])
 			{
-				case 10:t->globalSize[0] = t->radix[0]/10;
-						t->localSize[0] = t->radix[0]/10 < 100 ? t->radix[0]/10 : 100;
+				case 10:t->globalSize[0] = t->side[0]/10;
+						t->localSize[0] = t->side[0]/10 < 100 ? t->side[0]/10 : 100;
 						break;
-				case 8: t->globalSize[0] = t->radix[0]/8;
-						t->localSize[0] = t->radix[0]/8 < 64 ? t->radix[0]/8 : 64;
+				case 8: t->globalSize[0] = t->side[0]/8;
+						t->localSize[0] = t->side[0]/8 < 64 ? t->side[0]/8 : 64;
 						break;
-				case 7: t->globalSize[0] = t->radix[0]/7;
-						t->localSize[0] = t->radix[0]/7 < 49 ? t->radix[0]/7 : 49;
+				case 7: t->globalSize[0] = t->side[0]/7;
+						t->localSize[0] = t->side[0]/7 < 49 ? t->side[0]/7 : 49;
 						break;
-				case 5: t->globalSize[0] = t->radix[0]/5;
-						t->localSize[0] = t->radix[0]/5 < 125 ? t->radix[0]/5 : 125;
+				case 5: t->globalSize[0] = t->side[0]/5;
+						t->localSize[0] = t->side[0]/5 < 125 ? t->side[0]/5 : 125;
 						break;
-				case 4: t->globalSize[0] = t->radix[0]/4;
-						t->localSize[0] = t->radix[0]/4 < 128 ? t->radix[0]/4 : 128;
+				case 4: t->globalSize[0] = t->side[0]/4;
+						t->localSize[0] = t->side[0]/4 < 128 ? t->side[0]/4 : 128;
 						break;
-				case 3: t->globalSize[0] = t->radix[0]/3;
-						t->localSize[0] = t->radix[0]/3 < 81 ? t->radix[0]/3 : 81;
+				case 3: t->globalSize[0] = t->side[0]/3;
+						t->localSize[0] = t->side[0]/3 < 81 ? t->side[0]/3 : 81;
 						break;
-				case 2: t->globalSize[0] = t->radix[0]/2;
-						t->localSize[0] = t->radix[0]/2 < 128 ? t->radix[0]/2 : 128;
+				case 2: t->globalSize[0] = t->side[0]/2;
+						t->localSize[0] = t->side[0]/2 < 128 ? t->side[0]/2 : 128;
 						break;
 			}
 			break;
 		case 1:
-			t->globalSize[0] = t->radix[0];
+			t->globalSize[0] = t->side[0];
 			t->localSize[0] = 1;
 			switch(t->radix[1])
 			{
-				case 10:t->globalSize[1] = t->radix[1]/10;
-						t->localSize[1] = t->radix[1]/10 < 100 ? t->radix[1]/10 : 100;
+				case 10:t->globalSize[1] = t->side[1]/10;
+						t->localSize[1] = t->side[1]/10 < 100 ? 1 : 100;
 						break;
-				case 8: t->globalSize[1] = t->radix[1]/8;
-						t->localSize[1] = t->radix[1]/8 < 64 ? t->radix[1]/8 : 64;
+				case 8: t->globalSize[1] = t->side[1]/8;
+						t->localSize[1] = t->side[1]/8 < 64 ? t->side[1]/8 : 64;
 						break;
-				case 7: t->globalSize[1] = t->radix[1]/7;
-						t->localSize[1] = t->radix[1]/7 < 49 ? t->radix[1]/7 : 49;
+				case 7: t->globalSize[1] = t->side[1]/7;
+						t->localSize[1] = t->side[1]/7 < 49 ? t->side[1]/7 : 49;
 						break;
-				case 5: t->globalSize[1] = t->radix[1]/5;
-						t->localSize[1] = t->radix[1]/5 < 125 ? t->radix[1]/5 : 125;
+				case 5: t->globalSize[1] = t->side[1]/5;
+						t->localSize[1] = t->side[1]/5 < 125 ? t->side[1]/5 : 125;
 						break;
-				case 4: t->globalSize[1] = t->radix[1]/4;
-						t->localSize[1] = t->radix[1]/4 < 128 ? t->radix[1]/4 : 128;
+				case 4: t->globalSize[1] = t->side[1]/4;
+						t->localSize[1] = t->side[1]/4 < 128 ? t->side[1]/4 : 128;
 						break;
-				case 3: t->globalSize[1] = t->radix[1]/3;
-						t->localSize[1] = t->radix[1]/3 < 81 ? t->radix[1]/3 : 81;
+				case 3: t->globalSize[1] = t->side[1]/3;
+						t->localSize[1] = t->side[1]/3 < 81 ? t->side[1]/3 : 81;
 						break;
-				case 2: t->globalSize[1] = t->radix[1]/2;
-						t->localSize[1] = t->radix[1]/2 < 128 ? t->radix[1]/2 : 128;
+				case 2: t->globalSize[1] = t->side[1]/2;
+						t->localSize[1] = t->side[1]/2 < 128 ? t->side[1]/2 : 128;
 						break;
-
 			}
 			break;
 	}
 
-	#if 0 // Debug Code
+	#if 1 // Debug Code
 	printf("ND_RangeX: %d WG_X: %d\n", t->globalSize[0], t->localSize[0]);
 	printf("ND_RangeY: %d WG_Y: %d\n", t->globalSize[1], t->localSize[1]);
 	printf("Radix %c: %d\n", type == 0 ? 'X' : 'Y', t->radix[type]);
@@ -159,10 +158,10 @@ void Xtope1DExecMix( struct topeFFT *f,
 								CL_TRUE, 0, t->dataSize, d, 
 								0, NULL, &f->event);
 	$CHECKERROR
-	for (j = 0; j < t->radix[1]; j++) {
-		for (i = 0; i < t->radix[0]; i++) {
-			printf("%.3lf:%.3lf\t", d[2*(j*t->radix[0]+i)], 
-			d[2*(j*t->radix[0]+i)+1]);
+	for (i = 0; i < t->side[0]; i++) {
+		for (j = 0; j < t->side[1]; j++) {
+			printf("%.3lf:%.3lf\t", d[2*(j*t->side[0]+i)], 
+			d[2*(j*t->side[0]+i)+1]);
 		}
 		printf("\n");
 	}
@@ -316,8 +315,9 @@ void Xtope1DExec(	struct topeFFT *f,
 		}
 		else { // Mix Code
 			/* Run FFT along Y */
-			Xtope1DExecMix(f,t,1);
+			Xtope1DExecMix(f,t,1); // Note: This must be 1
 
+#if 1
 			/* Middle Step */
 			t->globalSize[0] = t->side[0];
 			t->globalSize[1] = t->side[1];
@@ -348,6 +348,7 @@ void Xtope1DExec(	struct topeFFT *f,
 				$CHECKERROR
 			clFinish(f->command_queue);
 			t->totalKernel += profileThis(f->event);
+#endif
 		}
 	}
 
@@ -359,9 +360,9 @@ void Xtope1DExec(	struct topeFFT *f,
 								0, NULL, &f->event);
 		$CHECKERROR
 	
-	for (j = 0; j < t->side[1]; j++) {
-		for (i = 0; i < t->side[0]; i++) {
-			printf("%.3lf:%.3lf\t", 
+	for (i = 0; i < t->side[0]; i++) {
+		for (j = 0; j < t->side[1]; j++) {
+			printf("%f+%fi\t", 
 				d[2*(j*t->side[0]+i)], d[2*(j*t->side[0]+i)+1]);
 		}
 		printf("\n");
@@ -427,10 +428,10 @@ void Xtope1dPlanInitMix(	struct topeFFT *f,
 									(void*)&t->data);
 		$CHECKERROR
 		f->error = clSetKernelArg(	t->kernel[ii], 1, sizeof(int), 
-									(void*)&t->radix[0]);
+									(void*)&t->side[0]);
 		$CHECKERROR
 		f->error = clSetKernelArg(	t->kernel[ii], 2, sizeof(int), 
-									(void*)&t->radix[1]);
+									(void*)&t->side[1]);
 		$CHECKERROR
 		#endif
 	}
@@ -454,10 +455,10 @@ void Xtope1dPlanInitMix(	struct topeFFT *f,
 		clSetKernelArg(t->kernel_mulTW, 0, sizeof(cl_mem), (void*)&t->data);
 		$CHECKERROR
 	f->error = 
-		clSetKernelArg(t->kernel_mulTW, 1, sizeof(int), (void*)&t->radix[0]);
+		clSetKernelArg(t->kernel_mulTW, 1, sizeof(int), (void*)&t->side[0]);
 		$CHECKERROR
 	f->error = 
-		clSetKernelArg(t->kernel_mulTW, 2, sizeof(int), (void*)&t->radix[1]);
+		clSetKernelArg(t->kernel_mulTW, 2, sizeof(int), (void*)&t->side[1]);
 		$CHECKERROR
 	
 	/* Bit Reversal */
@@ -487,11 +488,11 @@ void Xtope1dPlanInitMix(	struct topeFFT *f,
 										(void*)&t->bitrev[ii]); $CHECKERROR
 					f->error = 
 						clSetKernelArg(	t->kernel_bit[1], 1, 
-										sizeof(int)*t->log[ii]*t->radix[ii], 
+										sizeof(int)*t->bits[ii]*t->side[ii], 
 										NULL); 					$CHECKERROR
 					f->error = 
 						clSetKernelArg(	t->kernel_bit[1], 2, sizeof(int), 
-										(void*)&t->log[ii]);    $CHECKERROR
+										(void*)&t->bits[ii]);    $CHECKERROR
 					f->error = 
 						clSetKernelArg(	t->kernel_bit[1], 3, sizeof(int), 
 										(void*)&t->radix[ii]);  $CHECKERROR	
@@ -542,14 +543,14 @@ void Xtope1dPlanInitMix(	struct topeFFT *f,
 		t->totalPreKernel += profileThis(f->event);
 		
 		#if 0 // Debug Code
-		int *bit = malloc(sizeof(int)*t->radix[ii]);
+		int *bit = malloc(sizeof(int)*t->side[ii]);
 		f->error = 
 			clEnqueueReadBuffer( f->command_queue, t->bitrev[ii],
-								 CL_TRUE, 0, sizeof(int)*t->radix[ii], bit,
+								 CL_TRUE, 0, sizeof(int)*t->side[ii], bit,
 								 0, NULL, NULL);
 			$CHECKERROR
 		int iii;
-		for (iii = 0; iii < t->radix[ii]; iii++) {
+		for (iii = 0; iii < t->side[ii]; iii++) {
 			printf("%d\n", bit[iii]);	
 		}
 		printf("----\n");
@@ -835,16 +836,101 @@ int findRadix(int n, int r){
 		break;
 	}
 	if(n==1)
-	return r;
+		return r;
 	return -1;
-
 }
 
-
 void findFactors(int *factArray,int n){
-
 	
-	if(n%10==0){
+	
+	int i=0;
+	if(n%10 == 0){
+		factArray[i] = 1;
+		while( n >= 10 ){
+			if( n%10 == 0 ){
+				factArray[i] *= 10;
+				n = n/10;
+			}
+			else
+			break;
+		}
+		i++;
+	}
+
+	if(n%8 ==0 ){
+			
+		factArray[i] = 1;
+		while(n >= 8){
+			if( n%8 == 0){
+				factArray[i] *= 8;
+				n = n/8;
+			}
+			else
+			break;
+		}
+		i++;
+	}	
+	if(n%7 ==0 ){
+			
+		factArray[i] = 1;
+		while(n >= 7){
+			if( n%7 == 0){
+				factArray[i] *= 7;
+				n = n/7;
+			}
+			else
+			break;
+		}
+		i++;
+	}	
+	if(n%5 ==0 ){
+			
+		factArray[i] = 1;
+		while(n >= 5){
+			if( n%5 == 0){
+				factArray[i] *= 5;
+				n = n/5;
+			}
+			else
+			break;
+		}
+		i++;
+	}	
+	if(n%4 ==0 ){
+			
+		factArray[i] = 1;
+		while(n >= 4){
+			if( n%4 == 0){
+				factArray[i] *= 4;
+				n = n/4;
+			}
+			else
+			break;
+		}
+		i++;
+	}
+	if(n%3 ==0 ){
+			
+		factArray[i] = 1;
+		while(n >= 3){
+			if( n%3 == 0){
+				factArray[i] *= 3;
+				n = n/3;
+			}
+			else
+			break;
+		}
+		i++;
+	}
+
+
+
+
+
+
+
+
+#if 0
 		factArray[0]=10;
 		factArray[1]=n/10;
 	}
@@ -882,8 +968,9 @@ void findFactors(int *factArray,int n){
 		factArray[0]=n;
 		factArray[1]=-1;
 	}
-
+	#endif
 }
+
 void Xtope1DPlanInit(struct topeFFT *f, 
 					struct XtopePlan1D *t, 
 					int x, int type, double *d) 
@@ -924,7 +1011,7 @@ void Xtope1DPlanInit(struct topeFFT *f,
 			break;
 	case 8:
 			t->log[0] = log2(t->length)/log2(8);
-			t->bits[0] = t->log[0];
+			t->bits[0] = log2(t->length);
 			t->side[0] = t->length;
 			t->radix[0] = 8;
 			break;
@@ -944,7 +1031,7 @@ void Xtope1DPlanInit(struct topeFFT *f,
 
 	case 4:
 			t->log[0] = log2(t->length)/log2(4);
-			t->bits[0] = t->log[0];
+			t->bits[0] = log2(t->length);
 			t->side[0] = t->length;
 			t->radix[0] = 4;
 			break;
@@ -957,12 +1044,12 @@ void Xtope1DPlanInit(struct topeFFT *f,
 			break;
 
 	case 2:
-			t->log[0] = log2(t->length)/log2(2);
+			t->log[0] = log2(t->length);
 			t->bits[0] = t->log[0];
 			t->side[0] = t->length;
 			t->radix[0] = 2;
 			break;
-	case -1:                           //mix-radix
+	case -1:                //mix-radix
 			t->dim   = 2;	// 2 factor support
 			t->side  = realloc(t->side, sizeof(int)*t->dim);
 			t->radix = realloc(t->radix,sizeof(int)*t->dim);
@@ -970,15 +1057,39 @@ void Xtope1DPlanInit(struct topeFFT *f,
 			t->bits  = realloc(t->bits, sizeof(int)*t->dim);
 			int *factArray=malloc(sizeof(int)*2);
 			findFactors(factArray,t->length);
+
 			t->side[0] = factArray[0];
 			t->side[1] = factArray[1];
-			t->radix[0] = factArray[0];
-			t->radix[0] = factArray[0];
-			t->radix[1] = factArray[1];
-			t->bits[0]  = log2(t->side[0])/log2(t->radix[0]);
-			t->log[0]   = t->bits[0];
-			t->bits[1]  = log2(t->side[1])/log2(t->radix[1]);
-			t->log[1]   = t->bits[1];
+			
+			for(index=0; index<7; index++){
+				t->radix[0] = findRadix(t->side[0],array[index]);
+				if(t->radix[0] != -1)
+				break;
+			}
+			for(index=0; index<7; index++){
+				t->radix[1] = findRadix(t->side[1],array[index]);
+				if(t->radix[1] != -1)
+				break;
+			}
+
+			int ii;
+			for (ii = 0; ii < t->dim; ii++) {
+				switch(t->radix[ii])
+				{
+					case 10:
+					case 7:
+					case 5:
+					case 3: t->bits[ii] = log2(t->side[ii])/log2(t->radix[ii]);
+							t->log[ii]  = log2(t->side[ii])/log2(t->radix[ii]);
+							break;
+					case 8:
+					case 4:
+					case 2: t->bits[ii] = log2(t->side[ii]);
+							t->log[ii]  = log2(t->side[ii])/log2(t->radix[ii]);
+							break;
+				}
+			}
+			break;
 
 			#if 0
 			// Revisit this factors later
@@ -1193,6 +1304,8 @@ void Xtope1DPlanInit(struct topeFFT *f,
 	#if 1 // Debug code
 	if (t->dim == 1) {
 		fprintf(stderr,"Radix: %d\n", t->radix[0]);
+		fprintf(stderr,"Bits : %d\n", t->bits[0]);
+		fprintf(stderr,"Log  : %d\n", t->log[0]);
 	}
 	else {
 		fprintf(stderr,"Sides: %d and %d\n", t->side[0], t->side[1]);

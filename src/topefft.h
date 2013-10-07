@@ -1,8 +1,8 @@
 #include <CL/cl.h>
 #include <assert.h>
 
-#define MAX_BINARY_SIZE (0x100000) // Eq: 1Mb
-#define MAX_SOURCE_SIZE (0x100000) // Eq: 1Mb
+#define MAX_BINARY_SIZE (0x200000) // Eq: 1Mb
+#define MAX_SOURCE_SIZE (0x200000) // Eq: 1Mb
 #define $CHECKERROR assert (f->error == CL_SUCCESS);	
 
 #define C2C 1

@@ -215,7 +215,7 @@ __kernel void DIT10C2CM(	__global double *data,
 	int idX = get_global_id(0);
 	int idY = get_global_id(1);
 
-	int powX = topePow(10.,stage,3);
+	int powX = topePow(10.,stage,1);
 	int powXm1 = powX/10;
 
 	int clipOne, clipTwo, clipThr, clipFou, clipFiv, 
@@ -408,25 +408,25 @@ __kernel void DIT10C2CM(	__global double *data,
 		data[clipTen+1] = SIG4A.s1 + (wa10*SIG4A.s3 + wb10*SIG4A.s2) +(wc10*SIG4A.s5 + wd10*SIG4A.s4) + (-wc10*SIG4A.s7 + wd10*SIG4A.s6) + (-wa10*SIG5A.y + wb10*SIG5A.x) + (-SIG6A.y) + (-wa10*SIG7A.y - wb10*SIG7A.x) + (-wc10*SIG8A.y - wd10*SIG8A.x) + (wc10*SIG9A.y - wd10*SIG9A.x) +(wa10*SIG10A.y - wb10*SIG10A.x) ;
 	
 	#if 0 // Debug code
-	data[clipOne+0] = 11;//kIndex;
+	data[clipOne+0] = powX;//kIndex;
 	data[clipOne+1] = 11;//yIndex;
-	data[clipTwo+0] = 22;//kIndex;
+	data[clipTwo+0] = powX;//kIndex;
 	data[clipTwo+1] = 22;//yIndex;
-	data[clipThr+0] = 33;//kIndex;
+	data[clipThr+0] = powX;//kIndex;
 	data[clipThr+1] = 33;//yIndex;
-	data[clipFou+0] = 44;//kIndex;
+	data[clipFou+0] = powX;//kIndex;
 	data[clipFou+1] = 44;//yIndex;
-	data[clipFiv+0] = 55;//kIndex;
+	data[clipFiv+0] = powX;//kIndex;
 	data[clipFiv+1] = 55;//yIndex;
-	data[clipSix+0] = 66;//kIndex;
+	data[clipSix+0] = powX;//kIndex;
 	data[clipSix+1] = 66;//yIndex;
-	data[clipSev+0] = 77;//kIndex;
+	data[clipSev+0] = powX;//kIndex;
 	data[clipSev+1] = 77;//yIndex;
-	data[clipEight+0] = 88;//kIndex;
+	data[clipEight+0] = powX;//kIndex;
 	data[clipEight+1] = 88;//yIndex;
-	data[clipNine+0] = 99;//kIndex;
+	data[clipNine+0] = powX;//kIndex;
 	data[clipNine+1] = 99;//yIndex;
-	data[clipTen+0] = 100;//kIndex;
+	data[clipTen+0] = powX;//kIndex;
 	data[clipTen+1] = 100;//yIndex;
 	#endif
 }
@@ -665,7 +665,7 @@ __kernel void DIT8C2C(	__global double *data,
 {
 	int idX = get_global_id(0);
 
-	int powX = (8.,stage,4);
+	int powX = topePow(8.,stage,4);
 	int powXm1 = powX/8;
 
 	int clipOne, clipTwo, clipThr, clipFou, clipFiv, clipSix, clipSev, clipEig;
@@ -2005,7 +2005,7 @@ __kernel void DIT5C2CM(	__global double *data,
 	int idX = get_global_id(0);
 	int idY = get_global_id(1);
 
-	int powX = topePow(5.,stage,11);
+	int powX = topePow(5.,stage,1);
 	int powXm1 = powX/5;
 
 	int clipOne, clipTwo, clipThr, clipFou, clipFiv;
@@ -2102,15 +2102,15 @@ __kernel void DIT5C2CM(	__global double *data,
 					- wd5*SIG4A.s6)+(wa5*SIG5A.y - wb5*SIG5A.x);
 
 	#if 0 // Debug code
-	data[clipOne+0] = 11;//kIndex;
+	data[clipOne+0] = powX;//kIndex;
 	data[clipOne+1] = 111;//yIndex;
-	data[clipTwo+0] = 22;//kIndex;
+	data[clipTwo+0] = powX;//kIndex;
 	data[clipTwo+1] = 222;//yIndex;
-	data[clipThr+0] = 33;//kIndex;
+	data[clipThr+0] = powX;//kIndex;
 	data[clipThr+1] = 333;//yIndex;
-	data[clipFou+0] = 44;//kIndex;
+	data[clipFou+0] = powX;//kIndex;
 	data[clipFou+1] = 444;//yIndex;
-	data[clipFiv+0] = 55;//kIndex;
+	data[clipFiv+0] = powX;//kIndex;
 	data[clipFiv+1] = 555;//yIndex;
 	#endif
 }
@@ -2315,7 +2315,7 @@ __kernel void DIT8C2CM(	__global double *data,
 	int idX = get_global_id(0);
 	int idY = get_global_id(1);
 
-	int powX = (8.,stage,4);
+	int powX = topePow(8.,stage,4);
 	int powXm1 = powX/8;
 
 	int clipOne, clipTwo, clipThr, clipFou, clipFiv, clipSix, clipSev, clipEig;
@@ -2516,8 +2516,6 @@ __kernel void DIT8C2CM(	__global double *data,
 	data[2*(idZ*x*y+idY*x+idX)] = powX;
 	data[2*(idZ*x*y+idY*x+idX)+1] = 0;
 	#endif
-
-
 }
 
 __kernel void kernelMUL( __global double *data,
