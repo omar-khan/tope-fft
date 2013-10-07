@@ -41,6 +41,7 @@ clean:
 	rm -f .sw*
 	rm -f .*sw*
 	rm -f src/.sw*
+	rm -f src/.*
 	rm -f src/kern*.ptx
 	rm -f lib/*
 	rm -f gmon.out	

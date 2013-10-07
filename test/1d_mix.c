@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
 	for (i = 0; i < N; i++) {
 		data[2*i] = i+1;//sin(2*PI*i/N);
 	}
-
+	
 	#if 1 /* Tope FFT Starts */
 	struct topeFFT framework;
 	topeFFTInit(&framework);
@@ -170,10 +170,10 @@ int main(int argc, char *argv[])
 									t_ns*1.0e-9, cuTime*10e-3);
 	#endif
 
-	#if 0
+	#if 1
 	plotInGnuplot(data, out, dataLoca, N);
 	#endif
-	
+		
 	#if 1 // Show Output
 	for (i = 0; i < N; i++) {
 		printf("%lf:%lf\t", data[2*i], data[2*i+1]); 	// Tope

@@ -21,7 +21,7 @@
 #define wc10 0.309016994374947
 #define wd10 0.951056516295154
 
-int topePow(double x, int y, int levels) {
+int topePow(float x, int y, int levels) {
 	#if 1
 	int powLevels = y / levels;
 	int powRemain = y % levels;
@@ -1801,6 +1801,10 @@ __kernel void DIT3C2C(
 	data[clipThr+1] = 
 		SIG3A.s1 + (0.866*SIG3A.s2 - 0.5* SIG3A.s3) 
 		+(-0.866*SIG3B.x - 0.5*SIG3B.y);
+
+		#if 0 //debug
+		data[0]=421;
+		#endif
 }
 
 __kernel void DIT3C2CM(	__global double *data,
@@ -1812,8 +1816,8 @@ __kernel void DIT3C2CM(	__global double *data,
 	int idX = get_global_id(0);
 	int idY = get_global_id(1);
 
-	int powX = topePow(3., stage, 11);
-	int powXm1 = powX/3;
+	int powX 	= topePow(3., stage, 6);
+	int powXm1 	= powX/3;
 
 	int clipOne, clipTwo, clipThr;
 	int yIndex, kIndex;
@@ -1877,6 +1881,20 @@ __kernel void DIT3C2CM(	__global double *data,
 	data[clipThr+1] = 
 		SIG3A.s1 + (0.866*SIG3A.s2 - 0.5* SIG3A.s3) 
 		+(-0.866*SIG3B.x - 0.5*SIG3B.y);
+
+		#if 0  //debug
+		data[clipOne+0]=11;
+		data[clipOne+1]=11;
+		data[clipTwo+0]=22;
+		data[clipTwo+1]=22;
+		data[clipThr+0]=33;
+		data[clipThr+1]=33;
+		#endif
+		#if 0  //debug
+		data[2*(idY*x+idX)]    = powX;
+		data[2*(idY*x+idX)+1]  = powX;
+		#endif
+
 }
 
 __kernel void DIT4C2CM(	__global double *data,
@@ -2702,6 +2720,9 @@ __kernel void reversen( __global int *bitRev,
 						int logSize, 
 						int radix)
 {	
+	
+	//if(radix !=3)
+	{	
 	#if 1 //[WORKING FOR ALL]
 	int idX = get_global_id(0);
 	int locX = get_local_id(0);
@@ -2720,8 +2741,10 @@ __kernel void reversen( __global int *bitRev,
 		tempRev += bitArray[j] * topePow(radix,i,5);
 	}
 	bitRev[idX] = tempRev;
+	//data[1]=420;
 	#endif
-
+	}
+	
 	#if 0 /* not working for radix-3, working for radix-5] 
 		   * This is working (but check for extremely large sizes)
 		   */
@@ -2744,7 +2767,7 @@ __kernel void reversen( __global int *bitRev,
 	}
 	bitRev[idX] = tempRev;
 	#endif
-
+	//else{
 	#if 0 /* [working for radix-3, not working for radix-5]
 		   * This is also working (but good for large sizes)
 		   */
@@ -2791,6 +2814,7 @@ __kernel void reversen( __global int *bitRev,
 	}
 	bitRev[idX] = subst;
 	#endif
+	//}
 }
 
 __kernel void DFT(  	__global double *data,

@@ -101,7 +101,7 @@ void tope1DExec(	struct topeFFT *f,
 			clFinish(f->command_queue);
 			t->totalKernel += profileThis(f->event);
 
-			#if 0 // Debug Code
+			#if 1 // Debug Code
 			int i;
 			f->error = clEnqueueReadBuffer(	f->command_queue, t->data,
 											CL_TRUE, 0, t->dataSize, d, 
