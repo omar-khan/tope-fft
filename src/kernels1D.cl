@@ -227,8 +227,8 @@ __kernel void DIT4C2C(	__global double *data,
 
 __kernel void DIT10C2CM(	__global double *data,
 						const int x, const int y,
-						unsigned int stage,
 						unsigned int dir,
+						unsigned int stage,
 						unsigned int type) 
 {
 	int idX = get_global_id(0);
@@ -927,8 +927,8 @@ __kernel void DIT8C2C(	__global double *data,
 
 __kernel void DIT2C2CM(	__global double *data,
 						const int x, const int y,
-						unsigned int stage,
 						unsigned int dir,
+						unsigned int stage,
 						unsigned int type) 
 {
 	int idX = get_global_id(0);
@@ -977,8 +977,8 @@ __kernel void DIT2C2CM(	__global double *data,
 
 __kernel void DITRC2CM(	__global double *data,
 						const int x, const int y,
-						unsigned int stage,
 						unsigned int dir,
+						unsigned int stage,
 						unsigned int type,
 						unsigned int radix)
 {
@@ -1507,6 +1507,7 @@ __kernel void DIT7C2C(
 	#endif
 #endif //end correct
 }
+
 __kernel void DITRC2C(
 			__global double *data, 
 			const int size,
@@ -2169,8 +2170,8 @@ __kernel void DIT3C2C(
 
 __kernel void DIT3C2CM(	__global double *data,
 						const int x, const int y,
-						unsigned int stage,
 						unsigned int dir,
+						unsigned int stage,
 						unsigned int type) 
 {
 	int idX = get_global_id(0);
@@ -2259,8 +2260,8 @@ __kernel void DIT3C2CM(	__global double *data,
 
 __kernel void DIT4C2CM(	__global double *data,
 						const int x, const int y,
-						unsigned int stage,
 						unsigned int dir,
+						unsigned int stage,
 						unsigned int type) 
 {
 	int idX = get_global_id(0);
@@ -2358,8 +2359,8 @@ __kernel void DIT4C2CM(	__global double *data,
 
 __kernel void DIT5C2CM(	__global double *data,
 						const int x, const int y,
-						unsigned int stage,
 						unsigned int dir,
+						unsigned int stage,
 						unsigned int type) 
 {
 	int idX = get_global_id(0);
@@ -2476,8 +2477,8 @@ __kernel void DIT5C2CM(	__global double *data,
 }
 __kernel void DIT6C2CM(	__global double *data,
 						const int x, const int y,
-						unsigned int stage,
 						unsigned int dir,
+						unsigned int stage,
 						unsigned int type) 
 {
 	int idX = get_global_id(0);
@@ -2621,8 +2622,8 @@ __kernel void DIT6C2CM(	__global double *data,
 }
 __kernel void DIT7C2CM(	__global double *data,
 						const int x, const int y,
-						unsigned int stage,
 						unsigned int dir,
+						unsigned int stage,
 						unsigned int type) 
 {
 	int idX = get_global_id(0);
@@ -2813,8 +2814,8 @@ __kernel void DIT7C2CM(	__global double *data,
 
 __kernel void DIT8C2CM(	__global double *data,
 						const int x, const int y,
-						unsigned int stage,
 						unsigned int dir,
+						unsigned int stage,
 						unsigned int type) 
 {
 	int idX = get_global_id(0);
@@ -3073,8 +3074,7 @@ __kernel void transpose2( __global double *data,
 __kernel void swapkernel(	__global double *data,	// initial data
 						const int x,	// dims
 						const int y,
-						__global int *bitX,	// bitrev data
-						__global int *bitY,
+						__global int *bit,	// bitrev data
 						const unsigned int type) // x or y or z
 {
 	int idX = get_global_id(0);
@@ -3089,9 +3089,9 @@ __kernel void swapkernel(	__global double *data,	// initial data
 	switch(type)
 	{
 		case 0: BASE = idY*x;
-				if (idX < bitX[idX]) {
+				if (idX < bit[idX]) {
 					OLD = 2*(BASE+STRIDE*idX);
-					NEW = 2*(BASE+STRIDE*bitX[idX]);
+					NEW = 2*(BASE+STRIDE*bit[idX]);
 					
 					holder = data[NEW];
 					data[NEW] = data[OLD];
@@ -3103,9 +3103,9 @@ __kernel void swapkernel(	__global double *data,	// initial data
 				}
 				break;
 		case 1: BASE = idX; STRIDE = x; 
-				if (idY < bitY[idY]) {
+				if (idY < bit[idY]) {
 					OLD = 2*(BASE+STRIDE*idY);
-					NEW = 2*(BASE+STRIDE*bitY[idY]);
+					NEW = 2*(BASE+STRIDE*bit[idY]);
 
 					holder = data[NEW];
 					data[NEW] = data[OLD];
@@ -3321,6 +3321,60 @@ __kernel void reversen( __global int *bitRev,
 	//}
 }
 
+__kernel void scratchToData( __global double2 *data,
+							 __global double2 *scratch )
+{
+	int idX = get_global_id(0);
+	int idY = get_global_id(1);
+
+	int index = idY*get_global_size(0) + idX;
+	data[index] = scratch[index];
+}
+
+__kernel void DFTM(	__global double *data,
+						const int x, const int y,
+						unsigned int dir,
+						unsigned int type,
+					__global double *scratch)
+{
+	int idX = get_global_id(0);
+	int idY = get_global_id(1);
+
+	int sizeX = get_global_size(0);
+	int sizeY = get_global_size(1);
+
+	int i, id, size;
+	int BASE = 0;
+	int STRIDE = 1;
+	int index1, index2;
+	double2 W, TEMP = (double2)(0,0);
+
+	switch(type) 
+	{
+		case 0: BASE = idY*x; 				size = sizeX; id = idX; break;
+		case 1: BASE = idX;		STRIDE = x; size = sizeY; id = idY; break;
+	}
+
+	for (i = 0; i < size; i++) 
+	{
+		W = (double2)( 	cos(CLPT*id*i/size), -sin(CLPT*id*i/size));
+		index1 = 2*(BASE+STRIDE*i);
+		index2 = 2*(idY*x+idX);
+		TEMP.x += data[index1] * W.x - data[index1+1] * W.y;
+		TEMP.y += data[index1] * W.y + data[index1+1] * W.x;
+	}
+	//scratch[2*(BASE+STRIDE*idX)]   = TEMP.x;
+	//scratch[2*(BASE+STRIDE*idX)+1] = TEMP.y;
+	scratch[index2]   = TEMP.x;
+	scratch[index2+1] = TEMP.y;
+
+	#if 0 // Debug
+	scratch[2*(idY*x+idX)] 	 = 11;//scratch[2*idX];
+	scratch[2*(idY*x+idX)+1]   = 22;//scratch[2*idX+1];
+	#endif
+}
+
+#if 0 // Can safely remove. Shifted to DFTM
 __kernel void DFT(  	__global double *data,
 						__global double *scratch,
 						const int size, 
@@ -3346,10 +3400,4 @@ __kernel void DFT(  	__global double *data,
 	data[2*idX+1] 	= scratch[2*idX+1];
 	#endif
 }
-
-
-
-
-
-
-
+#endif
