@@ -74,6 +74,9 @@ void Xtope1DExecMix( struct topeFFT *f,
 				case 7: t->globalSize[0] = t->side[0]/7;
 						t->localSize[0] = t->side[0]/7 < 49 ? t->side[0]/7 : 49;
 						break;
+				case 6: t->globalSize[0] = t->side[0]/6;
+						t->localSize[0] = t->side[0]/6 < 36 ? t->side[0]/6 : 36;
+						break;
 				case 5: t->globalSize[0] = t->side[0]/5;
 						t->localSize[0] = t->side[0]/5 < 125 ? t->side[0]/5 : 125;
 						break;
@@ -101,6 +104,9 @@ void Xtope1DExecMix( struct topeFFT *f,
 						break;
 				case 7: t->globalSize[1] = t->side[1]/7;
 						t->localSize[1] = t->side[1]/7 < 49 ? t->side[1]/7 : 49;
+						break;
+				case 6: t->globalSize[1] = t->side[1]/6;
+						t->localSize[1] = t->side[1]/6 < 36 ? t->side[1]/6 : 36;
 						break;
 				case 5: t->globalSize[1] = t->side[1]/5;
 						t->localSize[1] = t->side[1]/5 < 125 ? t->side[1]/5 : 125;
@@ -190,6 +196,8 @@ void Xtope1DExecPlain( struct topeFFT *f,
 				break;
 		case 5: t->localSize[0] = t->length < 125 ? t->length/5 : 125;
 				break;
+		case 6: t->localSize[0] = t->length < 36 ? t->length/6 : 36;
+				break;
 		case 7: t->localSize[0] = t->length < 49 ? t->length/7 : 49;
 				break;
 		case 10:t->localSize[0] = t->length < 100 ? t->length/10 : 100;
@@ -220,6 +228,11 @@ void Xtope1DExecPlain( struct topeFFT *f,
 				t->localSize[0] = t->length/7 < 49 ? t->length/7 : 49;
 				stage_arg = 2; 
 				break;
+		case 6: t->globalSize[0] = t->length/6;
+				t->localSize[0] = t->length/6 < 36 ? t->length/6 : 36;
+				stage_arg = 2;
+				break;
+		
 		case 5: t->globalSize[0] = t->length/5;
 				t->localSize[0] = t->length/5 < 125 ? t->length/5 : 125;
 				stage_arg = 2;
@@ -239,6 +252,8 @@ void Xtope1DExecPlain( struct topeFFT *f,
 	}
 	
 	int s;
+	//setting RC2C radix argument
+	clSetKernelArg(t->kernel[0],4,sizeof(int),(void*)&t->radix[0]);  
 	for (s = 1; s <= t->log[0]; s++) {
 		f->error = 
 			clSetKernelArg(t->kernel[0], stage_arg, sizeof(int), (void*)&s);
@@ -405,24 +420,36 @@ void Xtope1dPlanInitMix(	struct topeFFT *f,
 			case 2:	t->kernel[ii] = clCreateKernel(	f->program1D, 
 													"DIT2C2CM", &f->error);
 					$CHECKERROR break;
-			case 3:	t->kernel[ii] = clCreateKernel(	f->program1D,
-													"DIT3C2CM", &f->error);
-					$CHECKERROR break;
+			//case 3:	t->kernel[ii] = clCreateKernel(	f->program1D,
+			//										"DITRCM", &f->error);
+			//		$CHECKERROR break;
 			case 4:	t->kernel[ii] = clCreateKernel(	f->program1D,
 													"DIT4C2CM", &f->error);
 					$CHECKERROR break;
-			case 5:	t->kernel[ii] = clCreateKernel(	f->program1D,
-													"DIT5C2CM", &f->error);
-					$CHECKERROR break;
-			case 7:	t->kernel[ii] = clCreateKernel(	f->program1D,
-													"DIT7C2CM", &f->error);
-					$CHECKERROR break;
+		//	case 5:	t->kernel[ii] = clCreateKernel(	f->program1D,
+		//											"DITRC2CM", &f->error);
+		//			$CHECKERROR break;
+		//	case 6:	t->kernel[ii] = clCreateKernel(	f->program1D,
+		//											"DIT6C2CM", &f->error);
+		//			$CHECKERROR break;
+		//	case 7:	t->kernel[ii] = clCreateKernel(	f->program1D,
+		//											"DITRC2CM", &f->error);
+		//			$CHECKERROR break;
 			case 8:	t->kernel[ii] = clCreateKernel(	f->program1D,
 													"DIT8C2CM", &f->error);
 					$CHECKERROR break;
+			case 3:
+			case 5:
+			case 6:
+			case 7:
 			case 10:t->kernel[ii] = clCreateKernel( f->program1D,
-													"DIT10C2CM", &f->error);
-					$CHECKERROR break;
+													"DITRC2CM", &f->error);
+					$CHECKERROR 
+					f->error = clSetKernelArg(	t->kernel[ii], 6, sizeof(int), 
+									(void*)&t->radix[ii]);
+					$CHECKERROR
+					
+					break;
 		}
 		f->error = clSetKernelArg(	t->kernel[ii], 0, sizeof(cl_mem), 
 									(void*)&t->data);
@@ -482,6 +509,7 @@ void Xtope1dPlanInitMix(	struct topeFFT *f,
 					break;
 			case 10:
 			case 7:
+			case 6:
 			case 5:
 			case 3: f->error = 
 						clSetKernelArg(	t->kernel_bit[1], 0, sizeof(cl_mem), 
@@ -509,6 +537,8 @@ void Xtope1dPlanInitMix(	struct topeFFT *f,
 					 break;
 			case 7:  t->localSize[0] = t->side[ii]/7 < 49 ? t->side[ii]/7 : 49;
 					 break;
+			case 6:  t->localSize[0] = t->side[ii]/6 < 36 ? t->side[ii]/6 : 36;
+					 break;
 			case 5:  t->localSize[0] = t->side[ii]/5 < 125 ? t->side[ii]/5 : 125;
 					 break;
 			case 4:  t->globalSize[0] = t->side[ii]/2;
@@ -525,6 +555,7 @@ void Xtope1dPlanInitMix(	struct topeFFT *f,
 		{
 			case 10:
 			case 7:
+			case 6:
 			case 5:
 			case 3: f->error = clEnqueueNDRangeKernel(	
 						f->command_queue, t->kernel_bit[1],	1, NULL, // t->dim=1
@@ -653,20 +684,12 @@ void Xtope1DPlanInitBaseN( 	struct topeFFT *f, struct XtopePlan1D *t)
 	t->kernel = malloc(sizeof(cl_kernel));
 	switch(t->radix[0])
 	{
-		case 3:	t->kernel[0] = 
-					clCreateKernel(f->program1D, "DIT3C2C", &f->error);
-				$CHECKERROR
-				break;
-		case 5:	t->kernel[0] = 
-					clCreateKernel(f->program1D, "DIT5C2C", &f->error);
-				$CHECKERROR
-				break;
-		case 7: t->kernel[0] = 
-					clCreateKernel(f->program1D, "DIT7C2C", &f->error);
-				$CHECKERROR
-				break;
+		case 3:
+		case 5:
+		case 6:
+		case 7:
 		case 10:t->kernel[0] = 
-					clCreateKernel(f->program1D, "DIT10C2C", &f->error);
+					clCreateKernel(f->program1D, "DITRC2C", &f->error);
 				$CHECKERROR
 				break;
 	}
@@ -847,8 +870,10 @@ void findFactors(int *factArray,int n){
 	if(n%10 == 0){
 		factArray[i] = 1;
 		while( n >= 10 ){
-			if( n%10 == 0 ){
+			if( n % 10 == 0 ){
 				factArray[i] *= 10;
+				if(n/10 < 10)
+					factArray[i+1]=n % 10;
 				n = n/10;
 			}
 			else
@@ -861,8 +886,10 @@ void findFactors(int *factArray,int n){
 			
 		factArray[i] = 1;
 		while(n >= 8){
-			if( n%8 == 0){
+			if( n % 8 == 0){	
 				factArray[i] *= 8;
+				if(n/8 < 8)
+					factArray[i+1] = n % 8;
 				n = n/8;
 			}
 			else
@@ -870,12 +897,14 @@ void findFactors(int *factArray,int n){
 		}
 		i++;
 	}	
-	if(n%7 ==0 ){
+	if(n%7 == 0 ){
 			
 		factArray[i] = 1;
 		while(n >= 7){
-			if( n%7 == 0){
+			if(n%7 == 0){
 				factArray[i] *= 7;
+				if(n/7 < 7)
+					factArray[i+1]= n % 7;
 				n = n/7;
 			}
 			else
@@ -883,12 +912,28 @@ void findFactors(int *factArray,int n){
 		}
 		i++;
 	}	
-	if(n%5 ==0 ){
-			
+	if(n%6 == 0 ){	
 		factArray[i] = 1;
-		while(n >= 5){
-			if( n%5 == 0){
+		while( n >= 6){
+			if(n%6 == 0){
+				factArray[i] *= 6;
+				if(n/6 < 6)
+					factArray[i+1] = n % 6;
+				n = n/6;
+			}
+			else
+			break;
+		}
+		i++;
+	}	
+	
+	if(n%5 == 0 ){	
+		factArray[i] = 1;
+		while( n >= 5){
+			if(n%5 == 0){
 				factArray[i] *= 5;
+				if(n/5 < 5)
+					factArray[i+1] = n % 5;
 				n = n/5;
 			}
 			else
@@ -896,12 +941,14 @@ void findFactors(int *factArray,int n){
 		}
 		i++;
 	}	
-	if(n%4 ==0 ){
+	if(n%4 == 0 ){
 			
 		factArray[i] = 1;
 		while(n >= 4){
-			if( n%4 == 0){
+			if(n%4 == 0){
 				factArray[i] *= 4;
+				if(n/4 < 4)
+					factArray[i+1] = n % 4;
 				n = n/4;
 			}
 			else
@@ -909,12 +956,14 @@ void findFactors(int *factArray,int n){
 		}
 		i++;
 	}
-	if(n%3 ==0 ){
+	if(n%3 == 0 ){
 			
 		factArray[i] = 1;
 		while(n >= 3){
-			if( n%3 == 0){
+			if(n % 3 == 0){
 				factArray[i] *= 3;
+				if(n/3 < 3)
+					factArray[i+1] = n % 3;
 				n = n/3;
 			}
 			else
@@ -923,6 +972,22 @@ void findFactors(int *factArray,int n){
 		i++;
 	}
 
+
+	if(n%2 == 0 ){
+			
+		factArray[i] = 1;
+		while(n >= 2){
+			if(n % 2 == 0){
+				factArray[i] *= 2;
+				if(n/2 < 2)
+					factArray[i+1] = n % 2;
+				n = n/2;
+			}
+			else
+			break;
+		}
+		i++;
+	}
 
 
 
@@ -992,9 +1057,9 @@ void Xtope1DPlanInit(struct topeFFT *f,
 	double fl = modf(log(t->length),&re);
 	printf("\nsize %d\nre %f\nfloat %f\n",x,re,fl);
 	#if 1 //decide radix and whether to use Mix-radix
-	int array[7]={10, 8 ,7 ,5 ,4 ,3 ,2};
+	int array[8]={10, 8, 7, 6, 5, 4, 3, 2};
 	int index,radix;
-	for(index=0; index<7; index++){
+	for(index=0; index<8; index++){
 		radix = findRadix(t->length,array[index]);
 		if(radix != -1)
 		break;
@@ -1021,7 +1086,14 @@ void Xtope1DPlanInit(struct topeFFT *f,
 			t->side[0] = t->length;
 			t->radix[0] = 7;
 			break;
-	
+	case 6:
+			t->log[0] = log2(t->length)/log2(6);
+			t->bits[0] = t->log[0];
+			t->side[0] = t->length;
+			t->radix[0] = 6;
+			break;
+
+
 	case 5:
 			t->log[0] = log2(t->length)/log2(5);
 			t->bits[0] = t->log[0];
@@ -1061,12 +1133,12 @@ void Xtope1DPlanInit(struct topeFFT *f,
 			t->side[0] = factArray[0];
 			t->side[1] = factArray[1];
 			
-			for(index=0; index<7; index++){
+			for(index=0; index<8; index++){
 				t->radix[0] = findRadix(t->side[0],array[index]);
 				if(t->radix[0] != -1)
 				break;
 			}
-			for(index=0; index<7; index++){
+			for(index=0; index<8; index++){
 				t->radix[1] = findRadix(t->side[1],array[index]);
 				if(t->radix[1] != -1)
 				break;
@@ -1078,6 +1150,7 @@ void Xtope1DPlanInit(struct topeFFT *f,
 				{
 					case 10:
 					case 7:
+					case 6:
 					case 5:
 					case 3: t->bits[ii] = log2(t->side[ii])/log2(t->radix[ii]);
 							t->log[ii]  = log2(t->side[ii])/log2(t->radix[ii]);
@@ -1392,6 +1465,7 @@ void Xtope1DPlanInit(struct topeFFT *f,
 			case 2: 	Xtope1DPlanInitBase2(f,t); break;
 			case 3:
 			case 5:
+			case 6:
 			case 7: 	
 			case 10: 	Xtope1DPlanInitBaseN(f,t); break;	
 		}

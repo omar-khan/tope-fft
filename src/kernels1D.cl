@@ -4,10 +4,16 @@
 #define CLPT 6.283185307179586476925286766559 // acos(-1)*2
 #define d707 0.707106781186547524400844362104 // cos(acos(-1)/4)
 
+#define wa3 0.5
+#define wb3 0.866025403784439
+
 #define wa5 0.3090169944
 #define wb5 0.9510565163
 #define wc5 0.8090169944
 #define wd5 0.5877852523
+
+#define wa6 0.5
+#define wb6 0.866025403784439
 
 #define wa7 0.623489801858734
 #define wb7 0.78183148246803
@@ -20,6 +26,8 @@
 #define wb10 0.587785252292473
 #define wc10 0.309016994374947
 #define wd10 0.951056516295154
+
+#define MAX  20;
 
 int topePow(float x, int y, int levels) {
 	#if 1
@@ -37,6 +45,17 @@ int topePow(float x, int y, int levels) {
 	return powX;
 }
 
+int topePowInt(int base,int exponent){
+	int i=1;
+	int power=1;
+
+	for( i = 0; i < exponent; i++){
+
+		   power=power*base;
+	}
+
+	return power;
+}
 double4 rad2(double4 LOC, double2 clSet1)
 {
 	double4 FIN =  (double4)(	LOC.x + LOC.z * clSet1.x - LOC.w * clSet1.y,
@@ -905,6 +924,7 @@ __kernel void DIT8C2C(	__global double *data,
 	#endif
 }
 
+
 __kernel void DIT2C2CM(	__global double *data,
 						const int x, const int y,
 						unsigned int stage,
@@ -955,6 +975,359 @@ __kernel void DIT2C2CM(	__global double *data,
 	data[clipEnd + 1] 	= FIN.w;
 }
 
+__kernel void DITRC2CM(	__global double *data,
+						const int x, const int y,
+						unsigned int stage,
+						unsigned int dir,
+						unsigned int type,
+						unsigned int radix)
+{
+	int idX = get_global_id(0);
+	int idY = get_global_id(1);
+
+	int powX   = topePowInt(radix, stage);
+	int powXm1 = powX/radix;
+
+	int clipOne, clipTwo, clipThr;
+	int yIndex, kIndex;
+
+	int BASE   = 0;
+	int STRIDE = 1;
+	switch(type){
+		case 0: BASE 		= idY*x; 
+				yIndex 		= idX / powXm1;
+				kIndex 		= idX % powXm1;
+				break;
+		case 1: BASE 		= idX; 
+				STRIDE 		= x; 
+				yIndex 		= idY / powXm1;
+				kIndex 		= idY % powXm1;
+				break;
+	}
+
+	int clip[10];
+	int i;
+	for (i=0; i<radix; i++){
+		clip[i] = 2 * (BASE+STRIDE*(kIndex + yIndex * powX + i * powXm1));
+	}	
+	double SIG[2*10];
+
+	for(i=0; i<radix; i++){
+		
+		SIG[2*i]=data[clip[i]+0];
+		SIG[2*i+1]=data[clip[i]+1];
+	}
+	
+	
+	double2 clSet;
+	double2 TEMPC;
+
+	if(kIndex != 0){
+
+		for(i=1; i < radix; i++){
+			
+			clSet.x    =  cos( i * CLPT*kIndex/powX );
+			clSet.y    = -sin( i * CLPT*kIndex/powX );
+			if (dir == 0) clSet.y *=-1;
+			TEMPC.x    = SIG[2*i] * clSet.x - SIG[2*i+1] * clSet.y;
+			TEMPC.y    = SIG[2*i] * clSet.y + SIG[2*i+1] * clSet.x;
+			SIG[2*i]   = TEMPC.x;
+			SIG[2*i+1] = TEMPC.y;
+		}
+
+	}
+
+	switch(radix){
+		
+		case 3:
+			data[clip[0]+0] = SIG[0] + SIG[2] + SIG[4];
+			data[clip[0]+1] = SIG[1] + SIG[3] + SIG[5];
+			data[clip[1]+0] = 
+							SIG[0] + (-wa3*SIG[2] + wb3* SIG[3]) 
+							+(-wa3*SIG[4] - wb3*SIG[5]);
+			data[clip[1]+1] = 
+							SIG[1] + (-wb3*SIG[2] - wa3 * SIG[3]) 
+							+(wb3*SIG[4] - wa3*SIG[5]);
+			data[clip[2]+0] = 
+							SIG[0] + (-wa3*SIG[2] - wb3* SIG[3]) 
+							+(-wa3*SIG[4] + wb3*SIG[5]);
+			data[clip[2]+1] = 
+							SIG[1] + (wb3*SIG[2] - wa3* SIG[3]) 
+							+(-wb3*SIG[4] - wa3*SIG[5]);
+			break;
+		case 5:
+			data[clip[0]+0] = SIG[0] + SIG[2] + SIG[4] + SIG[6] + SIG[8];
+			data[clip[0]+1] = SIG[1] + SIG[3] + SIG[5] + SIG[7] + SIG[9];
+			data[clip[1]+0] = SIG[0] + (wa5*SIG[2] + wb5*SIG[3]) 
+							+(-wc5*SIG[4] + wd5*SIG[5]) + (-wc5*SIG[6] 
+							- wd5*SIG[7])+(wa5*SIG[8] - 	wb5*SIG[9]);
+			data[clip[1]+1] = SIG[1] + (wa5*SIG[3] - wb5*SIG[2])
+							+(-wc5*SIG[5] - wd5*SIG[4]) + (-wc5*SIG[7] +
+							wd5*SIG[6])+(wa5*SIG[9] + wb5*SIG[8]);
+			data[clip[2]+0] = SIG[0] + (-wc5*SIG[2] + wd5*SIG[3])
+							+(wa5*SIG[4] - wb5*SIG[5]) + (wa5*SIG[6] +
+							wb5*SIG[7])+(-wc5*SIG[8] - wd5*SIG[9]); 
+			data[clip[2]+1] = SIG[1] + (-wc5*SIG[3] - wd5*SIG[2]) 
+							+(wa5*SIG[5] + wb5*SIG[4]) + (wa5*SIG[7] 
+							- wb5*SIG[6])+(-wc5*SIG[9] +	wd5*SIG[8]);
+			data[clip[3]+0] = SIG[0] + (-wc5*SIG[2] - wd5*SIG[3]) 
+							+(wa5*SIG[4] + wb5*SIG[5]) + (wa5*SIG[6] 
+							- wb5*SIG[7])+(-wc5*SIG[8] + wd5*SIG[9]);
+			data[clip[3]+1] = SIG[1] + (-wc5*SIG[3] + wd5*SIG[2]) 
+							+(wa5*SIG[5] - wb5*SIG[4]) + (wa5*SIG[7] 
+							+ wb5*SIG[6])+(-wc5*SIG[9] - wd5*SIG[8]);
+			data[clip[4]+0] = SIG[0] + (wa5*SIG[2] - wb5*SIG[3]) 
+							+(-wc5*SIG[4] - wd5*SIG[5]) + (-wc5*SIG[6] 
+							+ wd5*SIG[7])+(wa5*SIG[8] + 	wb5*SIG[9]);
+			data[clip[4]+1] = SIG[1] + (wa5*SIG[3] + wb5*SIG[2]) 
+							+(-wc5*SIG[5] + wd5*SIG[4]) + (-wc5*SIG[7] 
+							- wd5*SIG[6])+(wa5*SIG[9] - wb5*SIG[8]);
+			break;
+		case 6:
+			data[clip[0]+0] = SIG[0] + SIG[2] + SIG[4] + SIG[6] + SIG[8] + SIG[10];
+			data[clip[0]+1] = SIG[1] + SIG[3] + SIG[5] + SIG[7] + SIG[9] + SIG[11];
+
+			data[clip[1]+0] = SIG[0] + (wa6*SIG[2] + wb6*SIG[3]) +
+							(-wa6*SIG[4] + wb6*SIG[5]) + (-SIG[6])+
+							(-wa6*SIG[8] - wb6*SIG[9]) + (wa6*SIG[10] - wb6*SIG[11]); 
+			data[clip[1]+1] = SIG[1] + (wa6*SIG[3] - wb6*SIG[2]) +
+							(-wa6*SIG[5] - wb6*SIG[4]) + (-SIG[7])+
+							(-wa6*SIG[9] +	wb6*SIG[8]) + (wa6*SIG[11] + wb6*SIG[10]);
+
+			data[clip[2]+0] = SIG[0] + (-wa6*SIG[2] + wb6*SIG[3]) +
+							(-wa6*SIG[4] - wb6*SIG[5]) + (SIG[6])+
+							(-wa6*SIG[8] + wb6*SIG[9]) + (-wa6*SIG[10] - wb6*SIG[11]); 
+			data[clip[2]+1] = SIG[1] + (-wa6*SIG[3] - wb6*SIG[2]) +
+							(-wa6*SIG[5] + wb6*SIG[4]) + (SIG[7])+
+							(-wa6*SIG[9] -	wb6*SIG[8]) + (-wa6*SIG[11] + wb6*SIG[10]);
+
+			data[clip[3]+0] = SIG[0] + (-SIG[2]) + (SIG[4]) + (-SIG[6]) +
+							(SIG[8]) + (-SIG[10]);
+			data[clip[3]+1] = SIG[1] + (-SIG[3]) + (SIG[5]) + (-SIG[7]) +
+							(SIG[9]) + (-SIG[11]);
+
+			data[clip[4]+0] = SIG[0] + (-wa6*SIG[2] - wb6*SIG[3]) +
+							(-wa6*SIG[4] + wb6*SIG[5]) + (SIG[6])+
+							(-wa6*SIG[8] - wb6*SIG[9]) + (-wa6*SIG[10] + wb6*SIG[11]); 
+
+			data[clip[4]+1] = SIG[1] + (-wa6*SIG[3] + wb6*SIG[2]) +
+							(-wa6*SIG[5] - wb6*SIG[4]) + (SIG[7])+
+							(-wa6*SIG[9] +	wb6*SIG[8]) + (-wa6*SIG[11] - wb6*SIG[10]);
+
+			data[clip[5]+0] = SIG[0] + (wa6*SIG[2] - wb6*SIG[3]) +
+							(-wa6*SIG[4] - wb6*SIG[5]) + (-SIG[6])+
+							(-wa6*SIG[8] + wb6*SIG[9]) + (wa6*SIG[10] + wb6*SIG[11]); 
+
+			data[clip[5]+1] =  SIG[1] + (wa6*SIG[3] + wb6*SIG[2]) +
+							(-wa6*SIG[5] + wb6*SIG[4]) + (-SIG[7])+
+							(-wa6*SIG[9] -	wb6*SIG[8]) + (wa6*SIG[11] - wb6*SIG[10]);
+		
+			break;
+		case 7:	
+			data[clip[0]+0] = SIG[0] + SIG[2] + SIG[4] + SIG[6] 
+							+ SIG[8] + SIG[10] + SIG[12];
+			data[clip[0]+1] = SIG[1] + SIG[3] + SIG[5] + SIG[7] 
+							+ SIG[9] + SIG[11] + SIG[13];
+			data[clip[1]+0] = SIG[0] + (wa7*SIG[2] + wb7*SIG[3]) 
+							+(-wc7*SIG[4] + wd7*SIG[5]) 
+							+ (-we7*SIG[6] + wf7*SIG[7]) 
+							+ (-we7*SIG[8] - wf7*SIG[9]) 
+							+ (-wc7*SIG[10] - wd7*SIG[11]) 
+							+ (wa7*SIG[12] - wb7*SIG[13]);
+			data[clip[1]+1] = SIG[1] + (wa7*SIG[3] - wb7*SIG[2]) 
+							+(-wc7*SIG[5] - wd7*SIG[4]) 
+							+ (-we7*SIG[7] - wf7*SIG[6]) 
+							+ (-we7*SIG[9] + wf7*SIG[8]) 
+							+ (-wc7*SIG[11] + wd7*SIG[10]) 
+							+ (wa7*SIG[13] + wb7*SIG[12]);
+			data[clip[2]+0] = SIG[0] + (-wc7*SIG[2] + wd7*SIG[3]) 
+							+(-we7*SIG[4] - wf7*SIG[5]) 
+							+ (wa7*SIG[6] - wb7*SIG[7]) 
+							+ (wa7*SIG[8] + wb7*SIG[9]) 
+							+ (-we7*SIG[10] + wf7*SIG[11]) 
+							+ (-wc7*SIG[12] - wd7*SIG[13]);
+			data[clip[2]+1] = SIG[1] + (-wc7*SIG[3] - wd7*SIG[2]) 
+							+(-we7*SIG[5] + wf7*SIG[4]) 
+							+ (wa7*SIG[7] + wb7*SIG[6]) 
+							+ (wa7*SIG[9] - wb7*SIG[8]) 
+							+ (-we7*SIG[11] - wf7*SIG[10]) 
+							+ (-wc7*SIG[13] + wd7*SIG[12]);
+			data[clip[3]+0] = SIG[0] + (-we7*SIG[2] + wf7*SIG[3]) 
+							+(wa7*SIG[4] - wb7*SIG[5]) 
+							+ (-wc7*SIG[6] + wd7*SIG[7]) 
+							+ (-wc7*SIG[8] - wd7*SIG[9]) 
+							+ (wa7*SIG[10] + wb7*SIG[11]) 
+							+ (-we7*SIG[12] - wf7*SIG[13]);
+			data[clip[3]+1] = SIG[1] + (-we7*SIG[3] - wf7*SIG[2]) 
+							+(wa7*SIG[5] + wb7*SIG[4]) 
+							+ (-wc7*SIG[7] - wd7*SIG[6]) 
+							+ (-wc7*SIG[9] + wd7*SIG[8]) 
+							+ (wa7*SIG[11] - wb7*SIG[10]) 
+							+ (-we7*SIG[13] + wf7*SIG[12]);
+			data[clip[4]+0] = SIG[0] + (-we7*SIG[2] - wf7*SIG[3]) 
+							+(wa7*SIG[4] + wb7*SIG[5]) 
+							+ (-wc7*SIG[6] - wd7*SIG[7]) 
+							+ (-wc7*SIG[8] + wd7*SIG[9]) 
+							+ (wa7*SIG[10] - wb7*SIG[11]) 
+							+ (-we7*SIG[12] + wf7*SIG[13]);
+			data[clip[4]+1] = SIG[1] + (-we7*SIG[3] + wf7*SIG[2]) 
+							+(wa7*SIG[5] - wb7*SIG[4]) 
+							+ (-wc7*SIG[7] + wd7*SIG[6]) 
+							+ (-wc7*SIG[9] - wd7*SIG[8]) 
+							+ (wa7*SIG[11] + wb7*SIG[10]) 
+							+ (-we7*SIG[13] - wf7*SIG[12]);
+			data[clip[5]+0] = SIG[0] + (-wc7*SIG[2] - wd7*SIG[3]) 
+							+(-we7*SIG[4] + wf7*SIG[5]) 
+							+ (wa7*SIG[6] + wb7*SIG[7]) 
+							+ (wa7*SIG[8] - wb7*SIG[9]) 
+							+ (-we7*SIG[10] - wf7*SIG[11]) 
+							+ (-wc7*SIG[12] + wd7*SIG[13]);
+			data[clip[5]+1] = SIG[1] + (-wc7*SIG[3] + wd7*SIG[2]) 
+							+(-we7*SIG[5] - wf7*SIG[4]) 
+							+ (wa7*SIG[7] - wb7*SIG[6]) 
+							+ (wa7*SIG[9] + wb7*SIG[8]) 
+							+ (-we7*SIG[11] + wf7*SIG[10]) 
+							+ (-wc7*SIG[13] - wd7*SIG[12]);
+			data[clip[6]+0] = SIG[0] + (wa7*SIG[2] - wb7*SIG[3]) 
+							+(-wc7*SIG[4] - wd7*SIG[5]) 
+							+ (-we7*SIG[6] - wf7*SIG[7]) 
+							+ (-we7*SIG[8] + wf7*SIG[9]) 
+							+ (-wc7*SIG[10] + wd7*SIG[11]) 
+							+ (wa7*SIG[12] + wb7*SIG[13]);
+			data[clip[6]+1] = SIG[1] + (wa7*SIG[3] + wb7*SIG[2]) 
+							+(-wc7*SIG[5] + wd7*SIG[4]) 
+							+ (-we7*SIG[7] + wf7*SIG[6]) 
+							+ (-we7*SIG[9] - wf7*SIG[8]) 
+							+ (-wc7*SIG[11] - wd7*SIG[10]) 
+							+ (wa7*SIG[13] - wb7*SIG[12]);
+			break;
+		case 10:
+			data[clip[0]+0] = SIG[0] + SIG[2] + SIG[4] + SIG[6] + SIG[8]
+							+ SIG[10] + SIG[12] + SIG[14] + SIG[16] + SIG[18];
+			data[clip[0]+1] = SIG[1] + SIG[3] + SIG[5] + SIG[7] + SIG[9]
+							+ SIG[11] + SIG[13] + SIG[15] + SIG[17] + SIG[19];
+	
+			data[clip[1]+0] = SIG[0] + (wa10*SIG[2] + wb10*SIG[3])
+							+ (wc10*SIG[4] + wd10*SIG[5]) + (-wc10*SIG[6]
+							+ wd10*SIG[7]) + (-wa10*SIG[8] + wb10*SIG[9])
+							+ (-SIG[10]) + (-wa10*SIG[12] - wb10*SIG[13])
+							+ (-wc10*SIG[14] - wd10*SIG[15]) + (wc10*SIG[16]
+							- wd10*SIG[17]) + (wa10*SIG[18] - wb10*SIG[19]);
+							
+			data[clip[1]+1]  = SIG[1] + (wa10*SIG[3] - wb10*SIG[2])
+							+(wc10*SIG[5] - wd10*SIG[4]) + (-wc10*SIG[7]
+							- wd10*SIG[6]) + (-wa10*SIG[9] - wb10*SIG[8])
+							+ (-SIG[11]) + (-wa10*SIG[13] + wb10*SIG[12])
+							+ (-wc10*SIG[15] + wd10*SIG[14]) + (wc10*SIG[17]
+							+ wd10*SIG[16]) +(wa10*SIG[19] + wb10*SIG[18]) ;
+
+			data[clip[2]+0] = SIG[0] + (wc10*SIG[2] + wd10*SIG[3])
+							+(-wa10*SIG[4] + wb10*SIG[5]) + (-wa10*SIG[6]
+							- wb10*SIG[7]) + (wc10*SIG[8] - wd10*SIG[9])
+							+ (SIG[10]) + (wc10*SIG[12] + 	wd10*SIG[13])
+							+ (-wa10*SIG[14] + wb10*SIG[15]) + (-wa10*SIG[16]
+							- wb10*SIG[17]) + (wc10*SIG[18] - wd10*SIG[19]);
+			data[clip[2]+1] = SIG[1] + (wc10*SIG[3] - wd10*SIG[2])
+							+(-wa10*SIG[5] - wb10*SIG[4]) + (-wa10*SIG[7]
+							+ wb10*SIG[6]) + (wc10*SIG[9] + wd10*SIG[8])
+							+ (SIG[11]) + (wc10*SIG[13] - wd10*SIG[12])
+							+ (-wa10*SIG[15] - wb10*SIG[14]) + (-wa10*SIG[17]
+							+ wb10*SIG[16]) +(wc10*SIG[19] + wd10*SIG[18]) ;
+
+
+			data[clip[3]+0] = SIG[0] + (-wc10*SIG[2] + wd10*SIG[3]) 
+							+(-wa10*SIG[4] - wb10*SIG[5]) + (wa10*SIG[6]
+							- wb10*SIG[7]) + (wc10*SIG[8] + wd10*SIG[9]) 
+							+ (-SIG[10]) + (wc10*SIG[12] - 	wd10*SIG[13]) 
+							+ (wa10*SIG[14] + wb10*SIG[15]) + (-wa10*SIG[16]
+							+ wb10*SIG[17]) + (-wc10*SIG[18] - wd10*SIG[19]);
+			data[clip[3]+1] = SIG[1] + (-wc10*SIG[3] - wd10*SIG[2]) 
+							+(-wa10*SIG[5] + wb10*SIG[4]) + (wa10*SIG[7] 
+							+ wb10*SIG[6]) + (wc10*SIG[9] - wd10*SIG[8])
+							+ (-SIG[11]) + (wc10*SIG[13] + wd10*SIG[12]) 
+							+ (wa10*SIG[15] - wb10*SIG[14]) + (-wa10*SIG[17]
+							- wb10*SIG[16]) +(-wc10*SIG[19] + wd10*SIG[18]) ;
+
+			data[clip[4]+0] = SIG[0] + (-wa10*SIG[2] + wb10*SIG[3]) 
+							+ (wc10*SIG[4] - wd10*SIG[5]) + (wc10*SIG[6]
+							+ wd10*SIG[7]) + (-wa10*SIG[8] - wb10*SIG[9]) 
+							+ (SIG[10]) + (-wa10*SIG[12] + 	wb10*SIG[13]) 
+							+ (wc10*SIG[14] - wd10*SIG[15]) + (wc10*SIG[16]
+							+ wd10*SIG[17]) + (-wa10*SIG[18] - wb10*SIG[19]);
+			data[clip[4]+1]	= SIG[1] + (-wa10*SIG[3] - wb10*SIG[2]) 
+							+ (wc10*SIG[5] + wd10*SIG[4]) + (wc10*SIG[7]
+							- wd10*SIG[6]) + (-wa10*SIG[9] + wb10*SIG[8])
+							+ (SIG[11]) + (-wa10*SIG[13] - wb10*SIG[12]) 
+							+ (wc10*SIG[15] + wd10*SIG[14])	+ (wc10*SIG[17]
+							- wd10*SIG[16]) + (-wa10*SIG[19] + wb10*SIG[18]) ;
+
+			data[clip[5]+0] = SIG[0] + (-SIG[2]) + SIG[4] + (-SIG[6])
+							+ SIG[8] + (-SIG[10]) + SIG[12] + (-SIG[14])
+							+ SIG[16] + (-SIG[18]);
+			data[clip[5]+1] = SIG[1] + (-SIG[3]) + SIG[5] + (-SIG[7])
+							+ SIG[9] + (-SIG[11]) + SIG[13] + (-SIG[15])
+							+ SIG[17] + (-SIG[19]);
+	
+			data[clip[6]+0] = SIG[0] + (-wa10*SIG[2] - wb10*SIG[3])
+							+(wc10*SIG[4] + wd10*SIG[5]) + (wc10*SIG[6]
+							- wd10*SIG[7]) + (-wa10*SIG[8] + wb10*SIG[9])
+							+ (SIG[10]) + (-wa10*SIG[12] - wb10*SIG[13])
+							+ (wc10*SIG[14] + wd10*SIG[15]) + (wc10*SIG[16]
+							- wd10*SIG[17]) + (-wa10*SIG[18] + wb10*SIG[19]);
+			data[clip[6]+1] = SIG[1] + (-wa10*SIG[3] + wb10*SIG[2])
+							+(wc10*SIG[5] - wd10*SIG[4]) + (wc10*SIG[7]
+							+ wd10*SIG[6]) + (-wa10*SIG[9] - wb10*SIG[8])
+							+ (SIG[11]) + (-wa10*SIG[13] + wb10*SIG[12])
+							+ (wc10*SIG[15] - wd10*SIG[14]) + (wc10*SIG[17]
+							+ wd10*SIG[16]) +(-wa10*SIG[19] - wb10*SIG[18]) ;
+
+
+			data[clip[7]+0] = SIG[0] + (-wc10*SIG[2] - wd10*SIG[3])
+							+(-wa10*SIG[4] + wb10*SIG[5]) + (wa10*SIG[6]
+							+ wb10*SIG[7]) + (wc10*SIG[8] - wd10*SIG[9])
+							+ (-SIG[10]) + (wc10*SIG[12] + wd10*SIG[13])
+							+ (wa10*SIG[14] - wb10*SIG[15]) + (-wa10*SIG[16]
+							- wb10*SIG[17]) + (-wc10*SIG[18] + wd10*SIG[19]);
+			data[clip[7]+1] = SIG[1] + (-wc10*SIG[3] + wd10*SIG[2])
+							+(-wa10*SIG[5] -wb10*SIG[4]) + (wa10*SIG[7]
+							- wb10*SIG[6]) + (wc10*SIG[9] + wd10*SIG[8])
+							+ (-SIG[11]) + (wc10*SIG[13] - wd10*SIG[12])
+							+ (wa10*SIG[15] + wb10*SIG[14]) + (-wa10*SIG[17]
+							+ wb10*SIG[16]) +(-wc10*SIG[19] - wd10*SIG[18]) ;
+
+
+			data[clip[8]+0] = SIG[0] + (wc10*SIG[2] - wd10*SIG[3])
+							+(-wa10*SIG[4] - wb10*SIG[5]) + (-wa10*SIG[6]
+							+ wb10*SIG[7]) + (wc10*SIG[8] + wd10*SIG[9])
+							+ (SIG[10]) + (wc10*SIG[12] - wd10*SIG[13])
+							+ (-wa10*SIG[14] - wb10*SIG[15]) + (-wa10*SIG[16]
+							+ wb10*SIG[17]) + (wc10*SIG[18] + wd10*SIG[19]);
+			data[clip[8]+1] = SIG[1] + (wc10*SIG[3] + wd10*SIG[2])
+							+(-wa10*SIG[5] + wb10*SIG[4]) + (-wa10*SIG[7]
+							- wb10*SIG[6]) + (wc10*SIG[9] - wd10*SIG[8])
+							+ (SIG[11]) + (wc10*SIG[13] + wd10*SIG[12])
+							+ (-wa10*SIG[15] + wb10*SIG[14]) + (-wa10*SIG[17]
+							- wb10*SIG[16]) +(wc10*SIG[19] - wd10*SIG[18]) ;
+
+
+			data[clip[9]+0] = SIG[0] + (wa10*SIG[2] - wb10*SIG[3])
+							+(wc10*SIG[4] - wd10*SIG[5]) + (-wc10*SIG[6]
+							- wd10*SIG[7]) + (-wa10*SIG[8] - wb10*SIG[9])
+							+ (-SIG[10]) + (-wa10*SIG[12] + wb10*SIG[13])
+							+ (-wc10*SIG[14] + wd10*SIG[15]) + (wc10*SIG[16]
+							+ wd10*SIG[17]) + (wa10*SIG[18] + wb10*SIG[19]);
+			data[clip[9]+1] = SIG[1] + (wa10*SIG[3] + wb10*SIG[2])
+							+(wc10*SIG[5] + wd10*SIG[4]) + (-wc10*SIG[7]
+							+ wd10*SIG[6]) + (-wa10*SIG[9] + wb10*SIG[8])
+							+ (-SIG[11]) + (-wa10*SIG[13] - wb10*SIG[12])
+							+ (-wc10*SIG[15] - wd10*SIG[14]) + (wc10*SIG[17]
+							- wd10*SIG[16]) +(wa10*SIG[19] - wb10*SIG[18]) ;
+			break;
+		}
+
+	}
+
+
 __kernel void DIT7C2C(
 			__global double *data,
 			const int size,
@@ -964,7 +1337,8 @@ __kernel void DIT7C2C(
 #if 1 // correct
 	int idX = get_global_id(0);
 
-	int powX = topePow(7.,stage,11);
+//	int powX = topePow(7.,stage,11);
+	int powX = topePowInt(7,stage);
 	int powXm1 = powX/7;
 	// x =pow(5.0,2)=25 whereas x=pow(5.0f,2)=24	
 	//
@@ -1133,7 +1507,482 @@ __kernel void DIT7C2C(
 	#endif
 #endif //end correct
 }
+__kernel void DITRC2C(
+			__global double *data, 
+			const int size,
+			unsigned int stage,
+			unsigned int dir, int radix)
+{
+	
+	int idX=get_global_id(0);
+	int powX = topePowInt(radix,stage);
+	int powXm1 = powX/radix;
 
+	int clip[10];
+	int yIndex, kIndex;
+	yIndex = idX / powXm1;
+	kIndex = idX % powXm1;
+
+	int i;
+	for (i=0; i<radix; i++){
+		clip[i] = 2 * (kIndex + yIndex * powX + i *powXm1);
+	}
+
+	
+	double SIG[2*10];
+
+	for(i=0; i<radix; i++){
+		
+		SIG[2*i]=data[clip[i]+0];
+		SIG[2*i+1]=data[clip[i]+1];
+	}
+	
+	
+	double2 clSet;
+	double2 TEMPC;
+
+	if(kIndex != 0){
+
+		for(i=1; i < radix; i++){
+			
+			clSet.x    =  cos( i * CLPT*kIndex/powX );
+			clSet.y    = -sin( i * CLPT*kIndex/powX );
+			if (dir == 0) clSet.y *=-1;
+			TEMPC.x    = SIG[2*i] * clSet.x - SIG[2*i+1] * clSet.y;
+			TEMPC.y    = SIG[2*i] * clSet.y + SIG[2*i+1] * clSet.x;
+			SIG[2*i]   = TEMPC.x;
+			SIG[2*i+1] = TEMPC.y;
+		}
+
+	}
+
+	switch(radix){
+		
+		case 3:
+			data[clip[0]+0] = SIG[0] + SIG[2] + SIG[4];
+			data[clip[0]+1] = SIG[1] + SIG[3] + SIG[5];
+			data[clip[1]+0] = 
+							SIG[0] + (-wa3*SIG[2] + wb3* SIG[3]) 
+							+(-wa3*SIG[4] - wb3*SIG[5]);
+			data[clip[1]+1] = 
+							SIG[1] + (-wb3*SIG[2] - wa3 * SIG[3]) 
+							+(wb3*SIG[4] - wa3*SIG[5]);
+			data[clip[2]+0] = 
+							SIG[0] + (-wa3*SIG[2] - wb3* SIG[3]) 
+							+(-wa3*SIG[4] + wb3*SIG[5]);
+			data[clip[2]+1] = 
+							SIG[1] + (wb3*SIG[2] - wa3* SIG[3]) 
+							+(-wb3*SIG[4] - wa3*SIG[5]);
+			break;
+		case 5:
+			data[clip[0]+0] = SIG[0] + SIG[2] + SIG[4] + SIG[6] + SIG[8];
+			data[clip[0]+1] = SIG[1] + SIG[3] + SIG[5] + SIG[7] + SIG[9];
+			data[clip[1]+0] = SIG[0] + (wa5*SIG[2] + wb5*SIG[3]) 
+							+(-wc5*SIG[4] + wd5*SIG[5]) + (-wc5*SIG[6] 
+							- wd5*SIG[7])+(wa5*SIG[8] - 	wb5*SIG[9]);
+			data[clip[1]+1] = SIG[1] + (wa5*SIG[3] - wb5*SIG[2])
+							+(-wc5*SIG[5] - wd5*SIG[4]) + (-wc5*SIG[7] +
+							wd5*SIG[6])+(wa5*SIG[9] + wb5*SIG[8]);
+			data[clip[2]+0] = SIG[0] + (-wc5*SIG[2] + wd5*SIG[3])
+							+(wa5*SIG[4] - wb5*SIG[5]) + (wa5*SIG[6] +
+							wb5*SIG[7])+(-wc5*SIG[8] - wd5*SIG[9]); 
+			data[clip[2]+1] = SIG[1] + (-wc5*SIG[3] - wd5*SIG[2]) 
+							+(wa5*SIG[5] + wb5*SIG[4]) + (wa5*SIG[7] 
+							- wb5*SIG[6])+(-wc5*SIG[9] +	wd5*SIG[8]);
+			data[clip[3]+0] = SIG[0] + (-wc5*SIG[2] - wd5*SIG[3]) 
+							+(wa5*SIG[4] + wb5*SIG[5]) + (wa5*SIG[6] 
+							- wb5*SIG[7])+(-wc5*SIG[8] + wd5*SIG[9]);
+			data[clip[3]+1] = SIG[1] + (-wc5*SIG[3] + wd5*SIG[2]) 
+							+(wa5*SIG[5] - wb5*SIG[4]) + (wa5*SIG[7] 
+							+ wb5*SIG[6])+(-wc5*SIG[9] - wd5*SIG[8]);
+			data[clip[4]+0] = SIG[0] + (wa5*SIG[2] - wb5*SIG[3]) 
+							+(-wc5*SIG[4] - wd5*SIG[5]) + (-wc5*SIG[6] 
+							+ wd5*SIG[7])+(wa5*SIG[8] + 	wb5*SIG[9]);
+			data[clip[4]+1] = SIG[1] + (wa5*SIG[3] + wb5*SIG[2]) 
+							+(-wc5*SIG[5] + wd5*SIG[4]) + (-wc5*SIG[7] 
+							- wd5*SIG[6])+(wa5*SIG[9] - wb5*SIG[8]);
+			break;
+		case 6:
+			data[clip[0]+0] = SIG[0] + SIG[2] + SIG[4] + SIG[6] + SIG[8] + SIG[10];
+			data[clip[0]+1] = SIG[1] + SIG[3] + SIG[5] + SIG[7] + SIG[9] + SIG[11];
+
+			data[clip[1]+0] = SIG[0] + (wa6*SIG[2] + wb6*SIG[3]) +
+							(-wa6*SIG[4] + wb6*SIG[5]) + (-SIG[6])+
+							(-wa6*SIG[8] - wb6*SIG[9]) + (wa6*SIG[10] - wb6*SIG[11]); 
+			data[clip[1]+1] = SIG[1] + (wa6*SIG[3] - wb6*SIG[2]) +
+							(-wa6*SIG[5] - wb6*SIG[4]) + (-SIG[7])+
+							(-wa6*SIG[9] +	wb6*SIG[8]) + (wa6*SIG[11] + wb6*SIG[10]);
+
+			data[clip[2]+0] = SIG[0] + (-wa6*SIG[2] + wb6*SIG[3]) +
+							(-wa6*SIG[4] - wb6*SIG[5]) + (SIG[6])+
+							(-wa6*SIG[8] + wb6*SIG[9]) + (-wa6*SIG[10] - wb6*SIG[11]); 
+			data[clip[2]+1] = SIG[1] + (-wa6*SIG[3] - wb6*SIG[2]) +
+							(-wa6*SIG[5] + wb6*SIG[4]) + (SIG[7])+
+							(-wa6*SIG[9] -	wb6*SIG[8]) + (-wa6*SIG[11] + wb6*SIG[10]);
+
+			data[clip[3]+0] = SIG[0] + (-SIG[2]) + (SIG[4]) + (-SIG[6]) +
+							(SIG[8]) + (-SIG[10]);
+			data[clip[3]+1] = SIG[1] + (-SIG[3]) + (SIG[5]) + (-SIG[7]) +
+							(SIG[9]) + (-SIG[11]);
+
+			data[clip[4]+0] = SIG[0] + (-wa6*SIG[2] - wb6*SIG[3]) +
+							(-wa6*SIG[4] + wb6*SIG[5]) + (SIG[6])+
+							(-wa6*SIG[8] - wb6*SIG[9]) + (-wa6*SIG[10] + wb6*SIG[11]); 
+
+			data[clip[4]+1] = SIG[1] + (-wa6*SIG[3] + wb6*SIG[2]) +
+							(-wa6*SIG[5] - wb6*SIG[4]) + (SIG[7])+
+							(-wa6*SIG[9] +	wb6*SIG[8]) + (-wa6*SIG[11] - wb6*SIG[10]);
+
+			data[clip[5]+0] = SIG[0] + (wa6*SIG[2] - wb6*SIG[3]) +
+							(-wa6*SIG[4] - wb6*SIG[5]) + (-SIG[6])+
+							(-wa6*SIG[8] + wb6*SIG[9]) + (wa6*SIG[10] + wb6*SIG[11]); 
+
+			data[clip[5]+1] =  SIG[1] + (wa6*SIG[3] + wb6*SIG[2]) +
+							(-wa6*SIG[5] + wb6*SIG[4]) + (-SIG[7])+
+							(-wa6*SIG[9] -	wb6*SIG[8]) + (wa6*SIG[11] - wb6*SIG[10]);
+		
+			break;
+		case 7:	
+			data[clip[0]+0] = SIG[0] + SIG[2] + SIG[4] + SIG[6] 
+							+ SIG[8] + SIG[10] + SIG[12];
+			data[clip[0]+1] = SIG[1] + SIG[3] + SIG[5] + SIG[7] 
+							+ SIG[9] + SIG[11] + SIG[13];
+			data[clip[1]+0] = SIG[0] + (wa7*SIG[2] + wb7*SIG[3]) 
+							+(-wc7*SIG[4] + wd7*SIG[5]) 
+							+ (-we7*SIG[6] + wf7*SIG[7]) 
+							+ (-we7*SIG[8] - wf7*SIG[9]) 
+							+ (-wc7*SIG[10] - wd7*SIG[11]) 
+							+ (wa7*SIG[12] - wb7*SIG[13]);
+			data[clip[1]+1] = SIG[1] + (wa7*SIG[3] - wb7*SIG[2]) 
+							+(-wc7*SIG[5] - wd7*SIG[4]) 
+							+ (-we7*SIG[7] - wf7*SIG[6]) 
+							+ (-we7*SIG[9] + wf7*SIG[8]) 
+							+ (-wc7*SIG[11] + wd7*SIG[10]) 
+							+ (wa7*SIG[13] + wb7*SIG[12]);
+			data[clip[2]+0] = SIG[0] + (-wc7*SIG[2] + wd7*SIG[3]) 
+							+(-we7*SIG[4] - wf7*SIG[5]) 
+							+ (wa7*SIG[6] - wb7*SIG[7]) 
+							+ (wa7*SIG[8] + wb7*SIG[9]) 
+							+ (-we7*SIG[10] + wf7*SIG[11]) 
+							+ (-wc7*SIG[12] - wd7*SIG[13]);
+			data[clip[2]+1] = SIG[1] + (-wc7*SIG[3] - wd7*SIG[2]) 
+							+(-we7*SIG[5] + wf7*SIG[4]) 
+							+ (wa7*SIG[7] + wb7*SIG[6]) 
+							+ (wa7*SIG[9] - wb7*SIG[8]) 
+							+ (-we7*SIG[11] - wf7*SIG[10]) 
+							+ (-wc7*SIG[13] + wd7*SIG[12]);
+			data[clip[3]+0] = SIG[0] + (-we7*SIG[2] + wf7*SIG[3]) 
+							+(wa7*SIG[4] - wb7*SIG[5]) 
+							+ (-wc7*SIG[6] + wd7*SIG[7]) 
+							+ (-wc7*SIG[8] - wd7*SIG[9]) 
+							+ (wa7*SIG[10] + wb7*SIG[11]) 
+							+ (-we7*SIG[12] - wf7*SIG[13]);
+			data[clip[3]+1] = SIG[1] + (-we7*SIG[3] - wf7*SIG[2]) 
+							+(wa7*SIG[5] + wb7*SIG[4]) 
+							+ (-wc7*SIG[7] - wd7*SIG[6]) 
+							+ (-wc7*SIG[9] + wd7*SIG[8]) 
+							+ (wa7*SIG[11] - wb7*SIG[10]) 
+							+ (-we7*SIG[13] + wf7*SIG[12]);
+			data[clip[4]+0] = SIG[0] + (-we7*SIG[2] - wf7*SIG[3]) 
+							+(wa7*SIG[4] + wb7*SIG[5]) 
+							+ (-wc7*SIG[6] - wd7*SIG[7]) 
+							+ (-wc7*SIG[8] + wd7*SIG[9]) 
+							+ (wa7*SIG[10] - wb7*SIG[11]) 
+							+ (-we7*SIG[12] + wf7*SIG[13]);
+			data[clip[4]+1] = SIG[1] + (-we7*SIG[3] + wf7*SIG[2]) 
+							+(wa7*SIG[5] - wb7*SIG[4]) 
+							+ (-wc7*SIG[7] + wd7*SIG[6]) 
+							+ (-wc7*SIG[9] - wd7*SIG[8]) 
+							+ (wa7*SIG[11] + wb7*SIG[10]) 
+							+ (-we7*SIG[13] - wf7*SIG[12]);
+			data[clip[5]+0] = SIG[0] + (-wc7*SIG[2] - wd7*SIG[3]) 
+							+(-we7*SIG[4] + wf7*SIG[5]) 
+							+ (wa7*SIG[6] + wb7*SIG[7]) 
+							+ (wa7*SIG[8] - wb7*SIG[9]) 
+							+ (-we7*SIG[10] - wf7*SIG[11]) 
+							+ (-wc7*SIG[12] + wd7*SIG[13]);
+			data[clip[5]+1] = SIG[1] + (-wc7*SIG[3] + wd7*SIG[2]) 
+							+(-we7*SIG[5] - wf7*SIG[4]) 
+							+ (wa7*SIG[7] - wb7*SIG[6]) 
+							+ (wa7*SIG[9] + wb7*SIG[8]) 
+							+ (-we7*SIG[11] + wf7*SIG[10]) 
+							+ (-wc7*SIG[13] - wd7*SIG[12]);
+			data[clip[6]+0] = SIG[0] + (wa7*SIG[2] - wb7*SIG[3]) 
+							+(-wc7*SIG[4] - wd7*SIG[5]) 
+							+ (-we7*SIG[6] - wf7*SIG[7]) 
+							+ (-we7*SIG[8] + wf7*SIG[9]) 
+							+ (-wc7*SIG[10] + wd7*SIG[11]) 
+							+ (wa7*SIG[12] + wb7*SIG[13]);
+			data[clip[6]+1] = SIG[1] + (wa7*SIG[3] + wb7*SIG[2]) 
+							+(-wc7*SIG[5] + wd7*SIG[4]) 
+							+ (-we7*SIG[7] + wf7*SIG[6]) 
+							+ (-we7*SIG[9] - wf7*SIG[8]) 
+							+ (-wc7*SIG[11] - wd7*SIG[10]) 
+							+ (wa7*SIG[13] - wb7*SIG[12]);
+			break;
+		case 10:
+			data[clip[0]+0] = SIG[0] + SIG[2] + SIG[4] + SIG[6] + SIG[8]
+							+ SIG[10] + SIG[12] + SIG[14] + SIG[16] + SIG[18];
+			data[clip[0]+1] = SIG[1] + SIG[3] + SIG[5] + SIG[7] + SIG[9]
+							+ SIG[11] + SIG[13] + SIG[15] + SIG[17] + SIG[19];
+	
+			data[clip[1]+0] = SIG[0] + (wa10*SIG[2] + wb10*SIG[3])
+							+ (wc10*SIG[4] + wd10*SIG[5]) + (-wc10*SIG[6]
+							+ wd10*SIG[7]) + (-wa10*SIG[8] + wb10*SIG[9])
+							+ (-SIG[10]) + (-wa10*SIG[12] - wb10*SIG[13])
+							+ (-wc10*SIG[14] - wd10*SIG[15]) + (wc10*SIG[16]
+							- wd10*SIG[17]) + (wa10*SIG[18] - wb10*SIG[19]);
+							
+			data[clip[1]+1]  = SIG[1] + (wa10*SIG[3] - wb10*SIG[2])
+							+(wc10*SIG[5] - wd10*SIG[4]) + (-wc10*SIG[7]
+							- wd10*SIG[6]) + (-wa10*SIG[9] - wb10*SIG[8])
+							+ (-SIG[11]) + (-wa10*SIG[13] + wb10*SIG[12])
+							+ (-wc10*SIG[15] + wd10*SIG[14]) + (wc10*SIG[17]
+							+ wd10*SIG[16]) +(wa10*SIG[19] + wb10*SIG[18]) ;
+
+			data[clip[2]+0] = SIG[0] + (wc10*SIG[2] + wd10*SIG[3])
+							+(-wa10*SIG[4] + wb10*SIG[5]) + (-wa10*SIG[6]
+							- wb10*SIG[7]) + (wc10*SIG[8] - wd10*SIG[9])
+							+ (SIG[10]) + (wc10*SIG[12] + 	wd10*SIG[13])
+							+ (-wa10*SIG[14] + wb10*SIG[15]) + (-wa10*SIG[16]
+							- wb10*SIG[17]) + (wc10*SIG[18] - wd10*SIG[19]);
+			data[clip[2]+1] = SIG[1] + (wc10*SIG[3] - wd10*SIG[2])
+							+(-wa10*SIG[5] - wb10*SIG[4]) + (-wa10*SIG[7]
+							+ wb10*SIG[6]) + (wc10*SIG[9] + wd10*SIG[8])
+							+ (SIG[11]) + (wc10*SIG[13] - wd10*SIG[12])
+							+ (-wa10*SIG[15] - wb10*SIG[14]) + (-wa10*SIG[17]
+							+ wb10*SIG[16]) +(wc10*SIG[19] + wd10*SIG[18]) ;
+
+
+			data[clip[3]+0] = SIG[0] + (-wc10*SIG[2] + wd10*SIG[3]) 
+							+(-wa10*SIG[4] - wb10*SIG[5]) + (wa10*SIG[6]
+							- wb10*SIG[7]) + (wc10*SIG[8] + wd10*SIG[9]) 
+							+ (-SIG[10]) + (wc10*SIG[12] - 	wd10*SIG[13]) 
+							+ (wa10*SIG[14] + wb10*SIG[15]) + (-wa10*SIG[16]
+							+ wb10*SIG[17]) + (-wc10*SIG[18] - wd10*SIG[19]);
+			data[clip[3]+1] = SIG[1] + (-wc10*SIG[3] - wd10*SIG[2]) 
+							+(-wa10*SIG[5] + wb10*SIG[4]) + (wa10*SIG[7] 
+							+ wb10*SIG[6]) + (wc10*SIG[9] - wd10*SIG[8])
+							+ (-SIG[11]) + (wc10*SIG[13] + wd10*SIG[12]) 
+							+ (wa10*SIG[15] - wb10*SIG[14]) + (-wa10*SIG[17]
+							- wb10*SIG[16]) +(-wc10*SIG[19] + wd10*SIG[18]) ;
+
+			data[clip[4]+0] = SIG[0] + (-wa10*SIG[2] + wb10*SIG[3]) 
+							+ (wc10*SIG[4] - wd10*SIG[5]) + (wc10*SIG[6]
+							+ wd10*SIG[7]) + (-wa10*SIG[8] - wb10*SIG[9]) 
+							+ (SIG[10]) + (-wa10*SIG[12] + 	wb10*SIG[13]) 
+							+ (wc10*SIG[14] - wd10*SIG[15]) + (wc10*SIG[16]
+							+ wd10*SIG[17]) + (-wa10*SIG[18] - wb10*SIG[19]);
+			data[clip[4]+1]	= SIG[1] + (-wa10*SIG[3] - wb10*SIG[2]) 
+							+ (wc10*SIG[5] + wd10*SIG[4]) + (wc10*SIG[7]
+							- wd10*SIG[6]) + (-wa10*SIG[9] + wb10*SIG[8])
+							+ (SIG[11]) + (-wa10*SIG[13] - wb10*SIG[12]) 
+							+ (wc10*SIG[15] + wd10*SIG[14])	+ (wc10*SIG[17]
+							- wd10*SIG[16]) + (-wa10*SIG[19] + wb10*SIG[18]) ;
+
+			data[clip[5]+0] = SIG[0] + (-SIG[2]) + SIG[4] + (-SIG[6])
+							+ SIG[8] + (-SIG[10]) + SIG[12] + (-SIG[14])
+							+ SIG[16] + (-SIG[18]);
+			data[clip[5]+1] = SIG[1] + (-SIG[3]) + SIG[5] + (-SIG[7])
+							+ SIG[9] + (-SIG[11]) + SIG[13] + (-SIG[15])
+							+ SIG[17] + (-SIG[19]);
+	
+			data[clip[6]+0] = SIG[0] + (-wa10*SIG[2] - wb10*SIG[3])
+							+(wc10*SIG[4] + wd10*SIG[5]) + (wc10*SIG[6]
+							- wd10*SIG[7]) + (-wa10*SIG[8] + wb10*SIG[9])
+							+ (SIG[10]) + (-wa10*SIG[12] - wb10*SIG[13])
+							+ (wc10*SIG[14] + wd10*SIG[15]) + (wc10*SIG[16]
+							- wd10*SIG[17]) + (-wa10*SIG[18] + wb10*SIG[19]);
+			data[clip[6]+1] = SIG[1] + (-wa10*SIG[3] + wb10*SIG[2])
+							+(wc10*SIG[5] - wd10*SIG[4]) + (wc10*SIG[7]
+							+ wd10*SIG[6]) + (-wa10*SIG[9] - wb10*SIG[8])
+							+ (SIG[11]) + (-wa10*SIG[13] + wb10*SIG[12])
+							+ (wc10*SIG[15] - wd10*SIG[14]) + (wc10*SIG[17]
+							+ wd10*SIG[16]) +(-wa10*SIG[19] - wb10*SIG[18]) ;
+
+
+			data[clip[7]+0] = SIG[0] + (-wc10*SIG[2] - wd10*SIG[3])
+							+(-wa10*SIG[4] + wb10*SIG[5]) + (wa10*SIG[6]
+							+ wb10*SIG[7]) + (wc10*SIG[8] - wd10*SIG[9])
+							+ (-SIG[10]) + (wc10*SIG[12] + wd10*SIG[13])
+							+ (wa10*SIG[14] - wb10*SIG[15]) + (-wa10*SIG[16]
+							- wb10*SIG[17]) + (-wc10*SIG[18] + wd10*SIG[19]);
+			data[clip[7]+1] = SIG[1] + (-wc10*SIG[3] + wd10*SIG[2])
+							+(-wa10*SIG[5] -wb10*SIG[4]) + (wa10*SIG[7]
+							- wb10*SIG[6]) + (wc10*SIG[9] + wd10*SIG[8])
+							+ (-SIG[11]) + (wc10*SIG[13] - wd10*SIG[12])
+							+ (wa10*SIG[15] + wb10*SIG[14]) + (-wa10*SIG[17]
+							+ wb10*SIG[16]) +(-wc10*SIG[19] - wd10*SIG[18]) ;
+
+
+			data[clip[8]+0] = SIG[0] + (wc10*SIG[2] - wd10*SIG[3])
+							+(-wa10*SIG[4] - wb10*SIG[5]) + (-wa10*SIG[6]
+							+ wb10*SIG[7]) + (wc10*SIG[8] + wd10*SIG[9])
+							+ (SIG[10]) + (wc10*SIG[12] - wd10*SIG[13])
+							+ (-wa10*SIG[14] - wb10*SIG[15]) + (-wa10*SIG[16]
+							+ wb10*SIG[17]) + (wc10*SIG[18] + wd10*SIG[19]);
+			data[clip[8]+1] = SIG[1] + (wc10*SIG[3] + wd10*SIG[2])
+							+(-wa10*SIG[5] + wb10*SIG[4]) + (-wa10*SIG[7]
+							- wb10*SIG[6]) + (wc10*SIG[9] - wd10*SIG[8])
+							+ (SIG[11]) + (wc10*SIG[13] + wd10*SIG[12])
+							+ (-wa10*SIG[15] + wb10*SIG[14]) + (-wa10*SIG[17]
+							- wb10*SIG[16]) +(wc10*SIG[19] - wd10*SIG[18]) ;
+
+
+			data[clip[9]+0] = SIG[0] + (wa10*SIG[2] - wb10*SIG[3])
+							+(wc10*SIG[4] - wd10*SIG[5]) + (-wc10*SIG[6]
+							- wd10*SIG[7]) + (-wa10*SIG[8] - wb10*SIG[9])
+							+ (-SIG[10]) + (-wa10*SIG[12] + wb10*SIG[13])
+							+ (-wc10*SIG[14] + wd10*SIG[15]) + (wc10*SIG[16]
+							+ wd10*SIG[17]) + (wa10*SIG[18] + wb10*SIG[19]);
+			data[clip[9]+1] = SIG[1] + (wa10*SIG[3] + wb10*SIG[2])
+							+(wc10*SIG[5] + wd10*SIG[4]) + (-wc10*SIG[7]
+							+ wd10*SIG[6]) + (-wa10*SIG[9] + wb10*SIG[8])
+							+ (-SIG[11]) + (-wa10*SIG[13] - wb10*SIG[12])
+							+ (-wc10*SIG[15] - wd10*SIG[14]) + (wc10*SIG[17]
+							- wd10*SIG[16]) +(wa10*SIG[19] - wb10*SIG[18]) ;
+			break;
+	}
+	
+
+	
+
+
+}
+__kernel void DIT6C2C(
+			__global double *data, 
+			const int size,
+			unsigned int stage,
+			unsigned int dir)
+{
+	
+	int idX = get_global_id(0);
+
+	//int powX = topePow(5.,stage,11);
+	int powX = topePowInt(6,stage);
+	int powXm1 = powX/6;
+	// x =pow(5.0,2)=25 whereas x=pow(5.0f,2)=24
+	
+	int clipOne, clipTwo, clipThr, clipFou, clipFiv, clipSix;
+	int yIndex, kIndex;
+	yIndex = idX / powXm1;
+	kIndex = idX % powXm1;
+	
+	clipOne 	= 2 * (kIndex + yIndex * powX + 0 * powXm1);
+	clipTwo 	= 2 * (kIndex + yIndex * powX + 1 * powXm1);
+	clipThr		= 2 * (kIndex + yIndex * powX + 2 * powXm1);
+	clipFou		= 2 * (kIndex + yIndex * powX + 3 * powXm1);
+	clipFiv		= 2 * (kIndex + yIndex * powX + 4 * powXm1);
+	clipSix		= 2 * (kIndex + yIndex * powX + 5 * powXm1);
+	
+	double2 TEMPC;
+	double8 SIG4A = (double8)(	data[clipOne+0],data[clipOne+1],
+					data[clipTwo+0],data[clipTwo+1],
+					data[clipThr+0],data[clipThr+1],
+					data[clipFou+0],data[clipFou+1]);
+	double2 SIG5A = (double2)(	data[clipFiv+0],data[clipFiv+1]);
+	double2 SIG6A = (double2)(	data[clipSix+0],data[clipSix+1]);
+
+	double2 clSet2, clSet3, clSet4, clSet5, clSet6, temp2;
+	
+	if (kIndex!=0) {
+		clSet2.x =  cos(CLPT*kIndex/powX);
+		clSet2.y = -sin(CLPT*kIndex/powX);
+		if (dir == 0) clSet2.y *= -1;
+		TEMPC.x = SIG4A.s2 * clSet2.x - SIG4A.s3 * clSet2.y;
+		TEMPC.y = SIG4A.s2 * clSet2.y + SIG4A.s3 * clSet2.x;
+		SIG4A.s2 = TEMPC.x;
+		SIG4A.s3 = TEMPC.y;
+		clSet3.x = cos(2*CLPT*kIndex/powX);
+		clSet3.y = -sin(2*CLPT*kIndex/powX);
+		if (dir == 0) clSet3.y *= -1;
+		TEMPC.x = SIG4A.s4 * clSet3.x - SIG4A.s5 * clSet3.y;
+		TEMPC.y = SIG4A.s4 * clSet3.y + SIG4A.s5 * clSet3.x;
+		SIG4A.s4 = TEMPC.x;
+		SIG4A.s5 = TEMPC.y;
+		clSet4.x = cos(3*CLPT*kIndex/powX);
+		clSet4.y = -sin(3*CLPT*kIndex/powX);
+		if (dir == 0) clSet4.y *= -1;
+		TEMPC.x = SIG4A.s6 * clSet4.x - SIG4A.s7 * clSet4.y;
+		TEMPC.y = SIG4A.s6 * clSet4.y + SIG4A.s7 * clSet4.x;
+		SIG4A.s6 = TEMPC.x;
+		SIG4A.s7 = TEMPC.y;
+		clSet5.x = cos(4*CLPT*kIndex/powX);
+		clSet5.y = -sin(4*CLPT*kIndex/powX);
+		if (dir == 0) clSet5.y *= -1;
+		TEMPC.x = SIG5A.x * clSet5.x - SIG5A.y * clSet5.y;
+		TEMPC.y = SIG5A.x * clSet5.y + SIG5A.y * clSet5.x;
+		SIG5A.x = TEMPC.x;
+		SIG5A.y = TEMPC.y;
+		
+		clSet6.x = cos(5*CLPT*kIndex/powX);
+		clSet6.y = -sin(5*CLPT*kIndex/powX);
+		if (dir == 0) clSet6.y *= -1;
+		TEMPC.x = SIG6A.x * clSet6.x - SIG6A.y * clSet6.y;
+		TEMPC.y = SIG6A.x * clSet6.y + SIG6A.y * clSet6.x;
+		SIG6A.x = TEMPC.x;
+		SIG6A.y = TEMPC.y;
+	
+	}	
+
+	data[clipOne+0] = SIG4A.s0 + SIG4A.s2 + SIG4A.s4 + SIG4A.s6 + SIG5A.x + SIG6A.x;
+	data[clipOne+1] = SIG4A.s1 + SIG4A.s3 + SIG4A.s5 + SIG4A.s7 + SIG5A.y + SIG6A.y;
+
+					
+	data[clipTwo+0] = SIG4A.s0 + (wa6*SIG4A.s2 + wb6*SIG4A.s3) +
+					(-wa6*SIG4A.s4 + wb6*SIG4A.s5) + (-SIG4A.s6)+
+					(-wa6*SIG5A.x - wb6*SIG5A.y) + (wa6*SIG6A.x - wb6*SIG6A.y); 
+	data[clipTwo+1] = SIG4A.s1 + (wa6*SIG4A.s3 - wb6*SIG4A.s2) +
+					(-wa6*SIG4A.s5 - wb6*SIG4A.s4) + (-SIG4A.s7)+
+					(-wa6*SIG5A.y +	wb6*SIG5A.x) + (wa6*SIG6A.y + wb6*SIG6A.x);
+
+
+					
+	data[clipThr+0] = SIG4A.s0 + (-wa6*SIG4A.s2 + wb6*SIG4A.s3) +
+					(-wa6*SIG4A.s4 - wb6*SIG4A.s5) + (SIG4A.s6)+
+					(-wa6*SIG5A.x + wb6*SIG5A.y) + (-wa6*SIG6A.x - wb6*SIG6A.y); 
+	data[clipThr+1] = SIG4A.s1 + (-wa6*SIG4A.s3 - wb6*SIG4A.s2) +
+					(-wa6*SIG4A.s5 + wb6*SIG4A.s4) + (SIG4A.s7)+
+					(-wa6*SIG5A.y -	wb6*SIG5A.x) + (-wa6*SIG6A.y + wb6*SIG6A.x);
+
+	data[clipFou+0] = SIG4A.s0 + (-SIG4A.s2) + (SIG4A.s4) + (-SIG4A.s6) +
+					(SIG5A.x) + (-SIG6A.x);
+	data[clipFou+1] = SIG4A.s1 + (-SIG4A.s3) + (SIG4A.s5) + (-SIG4A.s7) +
+					(SIG5A.y) + (-SIG6A.y);
+
+	data[clipFiv+0] = SIG4A.s0 + (-wa6*SIG4A.s2 - wb6*SIG4A.s3) +
+					(-wa6*SIG4A.s4 + wb6*SIG4A.s5) + (SIG4A.s6)+
+					(-wa6*SIG5A.x - wb6*SIG5A.y) + (-wa6*SIG6A.x + wb6*SIG6A.y); 
+
+	data[clipFiv+1] = SIG4A.s1 + (-wa6*SIG4A.s3 + wb6*SIG4A.s2) +
+					(-wa6*SIG4A.s5 - wb6*SIG4A.s4) + (SIG4A.s7)+
+					(-wa6*SIG5A.y +	wb6*SIG5A.x) + (-wa6*SIG6A.y - wb6*SIG6A.x);
+
+	data[clipSix+0] = SIG4A.s0 + (wa6*SIG4A.s2 - wb6*SIG4A.s3) +
+					(-wa6*SIG4A.s4 - wb6*SIG4A.s5) + (-SIG4A.s6)+
+					(-wa6*SIG5A.x + wb6*SIG5A.y) + (wa6*SIG6A.x + wb6*SIG6A.y); 
+
+	data[clipSix+1] =  SIG4A.s1 + (wa6*SIG4A.s3 + wb6*SIG4A.s2) +
+					(-wa6*SIG4A.s5 + wb6*SIG4A.s4) + (-SIG4A.s7)+
+					(-wa6*SIG5A.y -	wb6*SIG5A.x) + (wa6*SIG6A.y - wb6*SIG6A.x);
+
+
+	#if 0 // Debug code
+	data[clipOne+0] = 11;//kIndex;
+	data[clipOne+1] = 111;//yIndex;
+	data[clipTwo+0] = 22;//kIndex;
+	data[clipTwo+1] = 222;//yIndex;
+	data[clipThr+0] = 33;//kIndex;
+	data[clipThr+1] = 333;//yIndex;
+	data[clipFou+0] = 44;//kIndex;
+	data[clipFou+1] = 444;//yIndex;
+	data[clipFiv+0] = 55;//kIndex;
+	data[clipFiv+1] = 555;//yIndex;
+	data[clipSix+0] = 66;
+	data[clipSix+1] = 666;
+	#endif
+
+}
 
 __kernel void DIT5C2C(
 			__global double *data, 
@@ -1144,7 +1993,8 @@ __kernel void DIT5C2C(
 #if 1 // correct
 	int idX = get_global_id(0);
 
-	int powX = topePow(5.,stage,11);
+	//int powX = topePow(5.,stage,11);
+	int powX = topePowInt(5,stage);
 	int powXm1 = powX/5;
 	// x =pow(5.0,2)=25 whereas x=pow(5.0f,2)=24
 	
@@ -1240,497 +2090,7 @@ __kernel void DIT5C2C(
 	#endif
 #endif //end correct
 
-#if 0 //failed attempt1
-	int idX = get_global_id(0);
-	int powMaxLvl = 11;
-	int powLevels = stage / powMaxLvl;
-	int powRemain = stage % powMaxLvl;
-	int powX = 1;
-	int powXm1 = 1;
-	int x;
-	for (x = 0; x < powLevels; x++) {
-		powX *= pow(5.0,powMaxLvl);
-	}
-	powX *= pow(5.0,powRemain);
-	powXm1 = powX/5;
-														
-	int clipOne, clipTwo, clipThr, clipFou, clipFiv;
-	int yIndex, kIndex;
-	yIndex = idX / powXm1;
-	kIndex = idX % powXm1;
-
-	clipOne 	= 2 * (kIndex + yIndex * powX + 0 * powXm1);
-	clipTwo 	= 2 * (kIndex + yIndex * powX + 1 * powXm1);
-	clipThr		= 2 * (kIndex + yIndex * powX + 2 * powXm1);
-	clipFou		= 2 * (kIndex + yIndex * powX + 3 * powXm1);
-	clipFiv		= 2 * (kIndex + yIndex * powX + 4 * powXm1);
-	
-	double2 TEMPC;
-	double8 SIG4A = (double8)(	data[clipOne+0],data[clipOne+1],
-					data[clipTwo+0],data[clipTwo+1],
-					data[clipThr+0],data[clipThr+1],
-					data[clipFou+0],data[clipFou+1]);
-	double2 SIG5A = (double2)(	data[clipFiv+0],data[clipFiv+1]);
-	double2 clSet1,clSet2, clSet3, clSet4, clSet5,temp2;
-	if(stage==1){
-		#if 1
-		clSet2.x=cos(CLPT*idX/5);
-		clSet2.y=-sin(CLPT*idX/5);
-		TEMPC.x = SIG4A.s2 * clSet2.x - SIG4A.s3 * clSet2.y;
-		TEMPC.y = SIG4A.s2 * clSet2.y + SIG4A.s3 * clSet2.x;
-		SIG4A.s2=TEMPC.x;
-		SIG4A.s3=TEMPC.y;
-
-		clSet3.x=cos(CLPT*2*idX/5);
-		clSet3.y=-sin(CLPT*2*idX/5);
-		TEMPC.x = SIG4A.s4 * clSet3.x - SIG4A.s5 * clSet3.y;
-		TEMPC.y = SIG4A.s4 * clSet3.y + SIG4A.s5 * clSet3.x;
-		SIG4A.s4=TEMPC.x;
-		SIG4A.s5=TEMPC.y;
-
-		clSet4.x=cos(CLPT*3*idX/5);
-		clSet4.y=-sin(CLPT*3*idX/5);
-		TEMPC.x = SIG4A.s6 * clSet4.x - SIG4A.s7 * clSet4.y;
-		TEMPC.y = SIG4A.s6 * clSet4.y + SIG4A.s7 * clSet4.x;
-		SIG4A.s6=TEMPC.x;
-		SIG4A.s7=TEMPC.y;
-
-		clSet5.x=cos(CLPT*4*idX/5);
-		clSet5.y=-sin(CLPT*4*idX/5);
-		TEMPC.x = SIG5A.x * clSet5.x - SIG5A.y * clSet5.y;
-		TEMPC.y = SIG5A.x * clSet5.y + SIG5A.y * clSet5.x;
-		SIG5A.x=TEMPC.x;
-		SIG5A.y=TEMPC.y;
-		#endif
-		
-		data[clipOne+0] = SIG4A.s0 + SIG4A.s2 + SIG4A.s4 + SIG4A.s6 + SIG5A.x;
-		data[clipOne+1] = SIG4A.s1 + SIG4A.s3 + SIG4A.s5 + SIG4A.s7 + SIG5A.y;
-		
-		#if 1
-		clSet2.x=cos(CLPT*idX/5);
-		clSet2.y=-sin(CLPT*idX/5);
-		TEMPC.x = SIG4A.s2 * clSet2.x - SIG4A.s3 * clSet2.y;
-		TEMPC.y = SIG4A.s2 * clSet2.y + SIG4A.s3 * clSet2.x;
-		SIG4A.s2=TEMPC.x;
-		SIG4A.s3=TEMPC.y;
-
-		clSet3.x=cos(CLPT*2*idX/5);
-		clSet3.y=-sin(CLPT*2*idX/5);
-		TEMPC.x = SIG4A.s4 * clSet3.x - SIG4A.s5 * clSet3.y;
-		TEMPC.y = SIG4A.s4 * clSet3.y + SIG4A.s5 * clSet3.x;
-		SIG4A.s4=TEMPC.x;
-		SIG4A.s5=TEMPC.y;
-
-		clSet4.x=cos(CLPT*3*idX/5);
-		clSet4.y=-sin(CLPT*3*idX/5);
-		TEMPC.x = SIG4A.s6 * clSet4.x - SIG4A.s7 * clSet4.y;
-		TEMPC.y = SIG4A.s6 * clSet4.y + SIG4A.s7 * clSet4.x;
-		SIG4A.s6=TEMPC.x;
-		SIG4A.s7=TEMPC.y;
-
-		clSet5.x=cos(CLPT*4*idX/5);
-		clSet5.y=-sin(CLPT*4*idX/5);
-		TEMPC.x = SIG5A.x * clSet5.x - SIG5A.y * clSet5.y;
-		TEMPC.y = SIG5A.x * clSet5.y + SIG5A.y * clSet5.x;
-		SIG5A.x=TEMPC.x;
-		SIG5A.y=TEMPC.y;
-		
-		#endif
-		data[clipTwo+0] = SIG4A.s0 + SIG4A.s2 + SIG4A.s4 + SIG4A.s6 + SIG5A.x;
-		data[clipTwo+1] = SIG4A.s1 + SIG4A.s3 + SIG4A.s5 + SIG4A.s7 + SIG5A.y;
-		
-		data[clipThr+0] = SIG4A.s0 + SIG4A.s2 + SIG4A.s4 + SIG4A.s6 + SIG5A.x;
-		data[clipThr+1] = SIG4A.s1 + SIG4A.s3 + SIG4A.s5 + SIG4A.s7 + SIG5A.y;
-
-		data[clipFou+0] = SIG4A.s0 + SIG4A.s2 + SIG4A.s4 + SIG4A.s6 + SIG5A.x;
-		data[clipFou+1] = SIG4A.s1 + SIG4A.s3 + SIG4A.s5 + SIG4A.s7 + SIG5A.y;
-	
-		data[clipFiv+0] = SIG4A.s0 + SIG4A.s2 + SIG4A.s4 + SIG4A.s6 + SIG5A.x;
-		data[clipFiv+1] = SIG4A.s1 + SIG4A.s3 + SIG4A.s5 + SIG4A.s7 + SIG5A.y;
-	}
-	else{
-		clSet2.x=cos(CLPT*idX/25);
-		clSet2.y=-sin(CLPT*idX/25);
-		TEMPC.x = SIG4A.s2 * clSet2.x - SIG4A.s3 * clSet2.y;
-		TEMPC.y = SIG4A.s2 * clSet2.y + SIG4A.s3 * clSet2.x;
-		SIG4A.s2=TEMPC.x;
-		SIG4A.s3=TEMPC.y;
-
-		clSet3.x=cos(CLPT*2*idX/25);
-		clSet3.y=-sin(CLPT*2*idX/25);
-		TEMPC.x = SIG4A.s4 * clSet3.x - SIG4A.s5 * clSet3.y;
-		TEMPC.y = SIG4A.s4 * clSet3.y + SIG4A.s5 * clSet3.x;
-		SIG4A.s4=TEMPC.x;
-		SIG4A.s5=TEMPC.y;
-
-		clSet4.x=cos(CLPT*3*idX/25);
-		clSet4.y=-sin(CLPT*3*idX/25);
-		TEMPC.x = SIG4A.s6 * clSet4.x - SIG4A.s7 * clSet4.y;
-		TEMPC.y = SIG4A.s6 * clSet4.y + SIG4A.s7 * clSet4.x;
-		SIG4A.s6=TEMPC.x;
-		SIG4A.s7=TEMPC.y;
-
-		clSet5.x=cos(CLPT*4*idX/25);
-		clSet5.y=-sin(CLPT*4*idX/25);
-		TEMPC.x = SIG5A.x * clSet5.x - SIG5A.y * clSet5.y;
-		TEMPC.y = SIG5A.x * clSet5.y + SIG5A.y * clSet5.x;
-		SIG5A.x=TEMPC.x;
-		SIG5A.y=TEMPC.y;
-	
-		data[clipOne+0] = SIG4A.s0 + SIG4A.s2 + SIG4A.s4 + SIG4A.s6 + SIG5A.x;
-		data[clipOne+1] = SIG4A.s1 + SIG4A.s3 + SIG4A.s5 + SIG4A.s7 + SIG5A.y;
-		data[clipTwo+0] = SIG4A.s0 + (wa5 * SIG4A.s2 + wb5 * SIG4A.s3) 
-						+ (-wc5 * SIG4A.s4 + wd5 * SIG4A.s5) 
-						+ (-wc5 * SIG4A.s6 - wd5 * SIG4A.s7) 
-						+ (wa5 * SIG5A.x - wb5 * SIG5A.y);
-		data[clipTwo+1] = SIG4A.s1 + (-wb5 * SIG4A.s2 + wa5 * SIG4A.s3) 
-						+ (-wd5 * SIG4A.s4 - wc5 * SIG4A.s5) 
-						+ (wd5 * SIG4A.s6 - wc5 * SIG4A.s7) 
-						+ (wb5 * SIG5A.x + wa5 * SIG5A.y);
-		data[clipThr+0] = SIG4A.s0 + (-wc5 * SIG4A.s2 + wd5 * SIG4A.s3) 
-						+ (wa5 * SIG4A.s4 - wb5 * SIG4A.s5) 
-						+ (wa5 * SIG4A.s6 + wb5 * SIG4A.s7) 
-						+ (-wc5 * SIG5A.x - wd5 * SIG5A.y);
-		data[clipThr+1] = SIG4A.s1 + (-wd5 * SIG4A.s2 - wc5 * SIG4A.s3) 
-						+ (wb5 * SIG4A.s4 + wa5 * SIG4A.s5) 
-						+ (-wb5 * SIG4A.s6 + wa5 * SIG4A.s7) 
-						+ (wd5 * SIG5A.x - wc5 * SIG5A.y);
-		data[clipFou+0] = SIG4A.s0 + (-wc5 * SIG4A.s2 - wd5 * SIG4A.s3) 
-						+ (wa5 * SIG4A.s4 + wb5 * SIG4A.s5) 
-						+ (wa5 * SIG4A.s6 - wb5 * SIG4A.s7) 
-						+ (-wc5 * SIG5A.x + wd5 * SIG5A.y);
-		data[clipFou+1] = SIG4A.s1 + (wd5 * SIG4A.s2 - wc5 * SIG4A.s3) 
-						+ (-wb5 * SIG4A.s4 + wa5 * SIG4A.s5) 
-						+ (wb5 * SIG4A.s6 + wa5 * SIG4A.s7) 
-						+ (-wd5 * SIG5A.x - wc5 * SIG5A.y);
-		data[clipFiv+0] = SIG4A.s0 + (wa5 * SIG4A.s2 - wb5 * SIG4A.s3) 
-						+ (-wc5 * SIG4A.s4 - wd5 * SIG4A.s5) 
-						+ (-wc5 * SIG4A.s6 + wd5 * SIG4A.s7) 
-						+ (wa5 * SIG5A.x + wb5 * SIG5A.y);
-		data[clipFiv+1] = SIG4A.s1 + (wb5 * SIG4A.s2 + wa5 * SIG4A.s3) 
-						+ (wd5 * SIG4A.s4 - wc5 * SIG4A.s5) 
-						+ (-wd5 * SIG4A.s6 - wc5 * SIG4A.s7) 
-						+ (-wb5 * SIG5A.x + wa5 * SIG5A.y);
-	
-		#if 0
-		data[clipOne+0] = SIG4A.s0 + SIG4A.s2 + SIG4A.s4 + SIG4A.s6 + SIG5A.x;
-		data[clipOne+1] = SIG4A.s1 + SIG4A.s3 + SIG4A.s5 + SIG4A.s7 + SIG5A.y;
-		data[clipTwo+0] = SIG4A.s0 + wa5 * (SIG4A.s2 + SIG5A.x) 
-						- wc5 * (SIG4A.s4 + SIG4A.s6) 
-						+ wb5 * (SIG4A.s3 - SIG5A.y) 
-						+ wd5 * (SIG4A.s5 - SIG4A.s7);
-		data[clipTwo+1] = SIG4A.s1 + wa5 * (SIG4A.s3 + SIG5A.y) 
-						- wc5 * (SIG4A.s5 + SIG4A.s7) 
-						- wb5 * (SIG4A.s2 - SIG5A.x) 
-						+ wd5 * (SIG4A.s4 - SIG4A.s6);
-		data[clipThr+0] = SIG4A.s0 - wc5 * (SIG4A.s2 + SIG5A.x) 
-						- wa5 * (SIG4A.s4 + SIG4A.s6) 
-						+ wd5 * (SIG4A.s3 - SIG5A.y) 
-						- wb5 * (SIG4A.s5 - SIG4A.s7);
-		data[clipThr+1] = SIG4A.s1 - wc5 * (SIG4A.s3 + SIG5A.y) 
-						- wa5 * (SIG4A.s5 + SIG4A.s7) 
-						- wd5 * (SIG4A.s2 - SIG5A.x) 
-						- wb5 * (SIG4A.s4 - SIG4A.s6);
-		data[clipFou+0] = SIG4A.s0 - wc5 * (SIG4A.s2 + SIG5A.x) 
-						- wa5 * (SIG4A.s4 + SIG4A.s6) 
-						- wd5 * (SIG4A.s3 - SIG5A.y) 
-						- wb5 * (SIG4A.s5 - SIG4A.s7); 
-		data[clipFou+1] = SIG4A.s1 - wc5 * (SIG4A.s3 + SIG5A.y) 
-						- wa5 * (SIG4A.s5 + SIG4A.s7) 
-						+ wd5 * (SIG4A.s2 - SIG5A.x) 
-						- wb5 * (SIG4A.s4 - SIG4A.s6);
-		data[clipFiv+0] = SIG4A.s0 + wa5 * (SIG4A.s2 + SIG5A.x) 
-						- wc5 * (SIG4A.s4 + SIG4A.s6) 
-						- wb5 * (SIG4A.s3 - SIG5A.y) 
-						+ wd5 * (SIG4A.s5 - SIG4A.s7);
-		data[clipFiv+1] = SIG4A.s1 + wa5 * (SIG4A.s3 + SIG5A.y) 
-						- wc5 * (SIG4A.s5 + SIG4A.s7) 
-						+ wb5 * (SIG4A.s2 - SIG5A.x) 
-						+ wd5 * (SIG4A.s4 - SIG4A.s6);
-		#endif //correct
-	}	
-#endif // failed attempt
-
-#if 0 //extra
-	#if 0
-	clipOne 	= 2*(idX + 0*size/5 ); 	
-	clipTwo 	= 2*(idX + 1*size/5 );
-	clipThr		= 2*(idX + 2*size/5 );
-	clipFou		= 2*(idX + 3*size/5 );
-	clipFiv		= 2*(idX + 4*size/5 );
-	#endif 
-			
-	#if 0  //method 1
-	double2 p,q,r,s,t,w,wQ,wR,wS,wT;
-	double2 tempQ,tempR,tempS,tempT;
-	p.x=p.y=0.0;
-	q.x=q.y=0.0;
-	r.x=r.y=0.0;
-	s.x=s.y=0.0;
-	t.x=t.y=0.0;		
-	int i,N;
-	N=size/5;
-			
-	for(i=0;i<N;i++){
-		w.x=cos(CLPT*idX*i/N);
-		w.y=-sin(CLPT*idX*i/N);
-		clipOne 	= 2*(i + 0*size/5 ); 	
-		clipTwo 	= 2*(i + 1*size/5 );
-		clipThr		= 2*(i + 2*size/5 );
-		clipFou		= 2*(i + 3*size/5 );
-		clipFiv		= 2*(i + 4*size/5 );
-		p.x+=data[clipOne+0]*w.x - data[clipOne+1]*w.y;
-		p.y+=data[clipOne+0]*w.y - data[clipOne+1]*w.x;
-				
-		q.x+=data[clipTwo+0]*w.x - data[clipTwo+1]*w.y;
-		q.y+=data[clipTwo+0]*w.y - data[clipTwo+1]*w.x;
-
-		r.x+=data[clipThr+0]*w.x - data[clipThr+1]*w.y;
-		r.y+=data[clipThr+0]*w.y - data[clipThr+1]*w.x;
-		
-		s.x+=data[clipFou+0]*w.x - data[clipFou+1]*w.y;
-		s.y+=data[clipFou+0]*w.y - data[clipFou+1]*w.x;
-	
-		t.x+=data[clipFiv+0]*w.x - data[clipFiv+1]*w.y;
-		t.y+=data[clipFiv+0]*w.y - data[clipFiv+1]*w.x;
-	}
-		
-	N=size;
-	wQ.x=cos(CLPT*idX/N); 		wR.x=cos(CLPT*2*idX/N);
-	wS.x=cos(CLPT*3*idX/N); 	wT.x=cos(CLPT*4*idX/N);
-
-	wQ.y=-sin(CLPT*idX/N); 		wR.y=-sin(CLPT*2*idX/N);
-	wS.y=-sin(CLPT*3*idX/N); 	wS.y=-sin(CLPT*4*idX/N);
-	
-	out[2*idX] =p.x + (q.x*wQ.x-q.y*wQ.y) + (r.x*wR.x-r.y*wR.y) 
-				+ (s.x*wS.x-s.y*wS.y)+(t.x*wT.x-t.y*wT.y);
-	out[2*idX+1]=p.y + (q.x*wQ.y+q.y*wQ.x) + (r.x*wR.y+r.y*wR.x) 
-				+ (s.x*wS.y+s.y*wS.x)+(t.x*wT.y+t.y*wT.x);
-						
-	tempQ.x=wQ.x*wa5-wQ.y*(-wb5);
-	tempR.x=wR.x*(-wc5)-wR.y*(-wd5);
-	tempS.x=wS.x*(-wc5)-wS.y*wd5;
-	tempT.x=wT.x*wa5-wT.y*wb5;
-			
-	tempQ.y=wQ.x*(-wb5)+wQ.y*wa5;
-	tempR.y=wR.y*(-wd5)+wR.y*(-wc5);
-	tempS.y=wS.x*wd5+wS.y*(-wc5);
-	tempT.y=wT.x*wb5+wT.y*wa5;
-	
-	out[2*(idX+N)]=p.x + (q.x*tempQ.x-q.y*tempQ.y) + (r.x*tempR.x-r.y*tempR.y) 
-				+ (s.x*tempS.x-s.y*tempS.y)+(t.x*tempT.x-t.y*tempT.y);
-	out[2*(idX+N)+1]=p.y + (q.x*tempQ.y+q.y*tempQ.x) 
-				+ (r.x*tempR.y+r.y*tempR.x) + (s.x*tempS.y+s.y*tempS.x)
-				+(t.x*tempT.y+t.y*tempT.x);	
-
-	tempQ.x=wQ.x*(-wc5)-wQ.y*(-wd5);
-	tempR.x=wR.x*wa5-wR.y*wb5;
-	tempS.x=wS.x*wa5-wS.y*(-wb5);
-	tempT.x=wT.x*(-wc5)-wT.y*wd5;
-
-	tempQ.y=wQ.x*(-wd5)+wQ.y*(-wc5);
-	tempR.y=wR.x*wb5+wR.y*wa5;
-	tempS.y=wS.x*(-wb5)+wS.y*wa5;
-	tempT.y=wT.x*wd5+wT.y*(-wc5);
-	
-	out[2*(idX+2*N)]=p.x + (q.x*tempQ.x-q.y*tempQ.y) 
-					+ (r.x*tempR.x-r.y*tempR.y) + (s.x*tempS.x-s.y*tempS.y)
-					+(t.x*tempT.x-t.y*tempT.y);
-	out[2*(idX+2*N)+1]=p.y + (q.x*tempQ.y+q.y*tempQ.x) 
-					+ (r.x*tempR.y+r.y*tempR.x) + (s.x*tempS.y+s.y*tempS.x)
-					+(t.x*tempT.y+t.y*tempT.x);
-	
-	tempQ.x=wQ.x*(-wc5)-wQ.y*wd5;
-	tempR.x=wR.x*wa5-wR.y*(-wb5);
-	tempS.x=wS.x*wa5-wS.y*wb5;
-	tempT.x=wT.x*(-wc5)-wT.y*(-wd5);
-
-	tempQ.y=wQ.x*wd5+wQ.y*(-wc5);
-	tempR.y=wR.x*(-wb5)+wR.y*wa5;
-	tempS.y=wS.x*wb5+wS.y*wa5;
-	tempT.y=wT.x*(-wd5)+wT.y*(-wc5);
-			
-	out[2*(idX+3*N)]=p.x + (q.x*tempQ.x-q.y*tempQ.y) 
-					+ (r.x*tempR.x-r.y*tempR.y) + (s.x*tempS.x-s.y*tempS.y)
-					+(t.x*tempT.x-t.y*tempT.y);
-	out[2*(idX+3*N)+1]=p.y + (q.x*tempQ.y+q.y*tempQ.x) 
-					+ (r.x*tempR.y+r.y*tempR.x) + (s.x*tempS.y+s.y*tempS.x)
-					+(t.x*tempT.y+t.y*tempT.x);
-	
-	tempQ.x=wQ.x*wa5-wQ.y*wb5;
-	tempR.x=wR.x*(-wc5)-wR.y*wd5;
-	tempS.x=wS.x*(-wc5)-wS.y*(-wd5);
-	tempT.x=wT.x*wa5-wT.y*(-wb5);
-
-	tempQ.y=wQ.x*wb5+wQ.y*wa5;
-	tempR.y=wR.x*wd5+wR.y*(-wc5);
-	tempS.y=wS.x*(-wd5)+wS.y*(-wc5);
-	tempT.y=wT.x*(-wb5)+wT.y*wa5;
-	
-	out[2*(idX+4*N)]=p.x + (q.x*tempQ.x-q.y*tempQ.y) 
-					+ (r.x*tempR.x-r.y*tempR.y) + (s.x*tempS.x-s.y*tempS.y)
-					+(t.x*tempT.x-t.y*tempT.y);
-	out[2*(idX+4*N)+1]=p.y + (q.x*tempQ.y+q.y*tempQ.x) 
-					+ (r.x*tempR.y+r.y*tempR.x) + (s.x*tempS.y+s.y*tempS.x)
-					+(t.x*tempT.y+t.y*tempT.x);
-			
-	#endif //end method1
-	
-	#if 0 //step 1  multiply blocks [ ] with respective twiddles
-
-	double2 tw,tw0,tw1,twp,twq,twr,tws,twt,temp;
-			
-	double8 SIG4A = (double8)(	data[clipOne+0],data[clipOne+1],
-					data[clipTwo+0],data[clipTwo+1],
-					data[clipThr+0],data[clipThr+1],
-					data[clipFou+0],data[clipFou+1]);
-	double2 SIG5A = (double2)(	data[clipFiv+0],data[clipFiv+1]);
-	
-	int N=size/5;
-	
-	if(stage==1){
-		tw0.x=cos(CLPT*idX/N);
-		tw0.y=-sin(CLPT*idX/N);
-		temp.x=SIG4A.s0*tw0.x - SIG4A.s1*tw0.y;
-		temp.y=SIG4A.s0*tw0.y + SIG4A.s1*tw0.x;
-		SIG4A.s0=temp.x;
-		SIG4A.s1=temp.y;
-				
-		tw0.x=cos(CLPT*idX/N);
-		tw0.y=-sin(CLPT*idX/N);
-		temp.x=SIG4A.s2*tw0.x - SIG4A.s3*tw0.y;
-		temp.y=SIG4A.s2*tw0.y + SIG4A.s3*tw0.x;
-		SIG4A.s2=temp.x;
-		SIG4A.s3=temp.y;
-			
-		tw0.x=cos(CLPT*idX/N);
-		tw0.y=-sin(CLPT*idX/N);
-		temp.x=SIG4A.s4*tw0.x - SIG4A.s5*tw0.y;
-		temp.y=SIG4A.s4*tw0.y + SIG4A.s5*tw0.x;
-		SIG4A.s4=temp.x;
-		SIG4A.s5=temp.y;
-				
-		tw0.x=cos(CLPT*idX/N);
-		tw0.y=-sin(CLPT*idX/N);
-		temp.x=SIG4A.s6*tw0.x - SIG4A.s7*tw0.y;
-		temp.y=SIG4A.s6*tw0.y + SIG4A.s7*tw0.x;
-		SIG4A.s6=temp.x;
-		SIG4A.s7=temp.y;
-				
-		tw0.x=cos(CLPT*idX/N);
-		tw0.y=-sin(CLPT*idX/N);
-		temp.x=SIG5A.x*tw0.x - SIG4A.y*tw0.y;
-		temp.y=SIG5A.x*tw0.y + SIG4A.y*tw0.x;
-		SIG5A.x=temp.x;
-		SIG5A.y=temp.y;
-				
-		data[clipOne+0]=SIG4A.s0
-				
-		#if 0		
-		tw1.x=tw0.x*tw0.x-tw0.y*tw0.y;
-		tw1.y=2*tw0.x*tw0.y;
-		
-		twp.x=cos(CLPT*idX*0/size);
-		twp.y=-sin(CLPT*idX*0/size);
-		tw.x= twp.x*tw1.x-twp.y*tw1.y;
-		tw.y= twp.x*tw1.y+twp.y*tw1.x;
-		temp.x=data[clipOne+0]*tw.x - data[clipOne+1]*tw.y;
-		temp.y=data[clipOne+0]*tw.y + data[clipOne+1]*tw.x;
-		data[clipOne+0]=temp.x;
-		data[clipOne+1]=temp.y;
-				
-		twq.x=cos(CLPT*idX*1/size);
-		twq.y=-sin(CLPT*idX*1/size);
-		tw.x= twq.x*tw1.x-twq.y*tw1.y;
-		tw.y= twq.x*tw1.y+twq.y*tw1.x;
-				
-		temp.x=data[clipTwo+0]*tw.x - data[clipTwo+1]*tw.y;
-		temp.y=data[clipTwo+0]*tw.y + data[clipTwo+1]*tw.x;
-		data[clipTwo+0]=temp.x;
-		data[clipTwo+1]=temp.y;
-		
-		twr.x=cos(CLPT*idX*2/size);
-		twr.y=-sin(CLPT*idX*2/size);
-		tw.x= twr.x*tw1.x-twr.y*tw1.y;
-		tw.y= twr.x*tw1.y+twr.y*tw1.x;
-			
-		temp.x=data[clipThr+0]*tw.x - data[clipThr+1]*tw.y;
-		temp.y=data[clipThr+0]*tw.y + data[clipThr+1]*tw.x;
-		data[clipThr+0]=temp.x;
-		data[clipThr+1]=temp.y;
-				
-		tws.x=cos(CLPT*idX*3/size);
-		tws.y=-sin(CLPT*idX*3/size);
-		tw.x= tws.x*tw1.x-tws.y*tw1.y;
-		tw.y= tws.x*tw1.y+tws.y*tw1.x;
-				
-		temp.x=data[clipFou+0]*tw.x - data[clipFou+1]*tw.y;
-		temp.y=data[clipFou+0]*tw.y + data[clipFou+1]*tw.x;
-		data[clipFou+0]=temp.x;
-		data[clipFou+1]=temp.y;
-		
-		twt.x=cos(CLPT*idX*4/size);
-		twt.y=-sin(CLPT*idX*4/size);
-		tw.x= twt.x*tw1.x-twt.y*tw1.y;
-		tw.y= twt.x*tw1.y+twt.y*tw1.x;
-		
-		temp.x=data[clipFiv+0]*tw.x - data[clipFiv+1]*tw.y;
-		temp.y=data[clipFiv+0]*tw.y + data[clipFiv+1]*tw.x;
-		data[clipFiv+0]=temp.x;
-		data[clipFiv+1]=temp.y;
-		#endif
-	}
-	#endif //step 1
-			
-	#if 0 //step 2  multiply by last twiddle and sum
-	else{
-		double2 TEMPC;
-		double8 SIG4A = (double8)(	data[clipOne+0],data[clipOne+1],
-						data[clipTwo+0],data[clipTwo+1],
-						data[clipThr+0],data[clipThr+1],
-						data[clipFou+0],data[clipFou+1]);
-		double2 SIG5A = (double2)(	data[clipFiv+0],data[clipFiv+1]);
-			
-		data[clipOne+0] = SIG4A.s0 + SIG4A.s2 + SIG4A.s4 + SIG4A.s6 + SIG5A.x;
-		data[clipOne+1] = SIG4A.s1 + SIG4A.s3 + SIG4A.s5 + SIG4A.s7 + SIG5A.y;
-	
-		data[clipTwo+0] = SIG4A.s0 + wa5 * (SIG4A.s2 + SIG5A.x) 
-						- wc5 * (SIG4A.s4 + SIG4A.s6) 
-						+ wb5 * (SIG4A.s3 - SIG5A.y) 
-						+ wd5 * (SIG4A.s5 - SIG4A.s7);
-		data[clipTwo+1] = SIG4A.s1 + wa5 * (SIG4A.s3 + SIG5A.y) 
-						- wc5 * (SIG4A.s5 + SIG4A.s7) 
-						- wb5 * (SIG4A.s2 - SIG5A.x) 
-						+ wd5 * (SIG4A.s4 - SIG4A.s6);
-		data[clipThr+0] = SIG4A.s0 - wc5 * (SIG4A.s2 + SIG5A.x) 
-						- wa5 * (SIG4A.s4 + SIG4A.s6) 
-						+ wd5 * (SIG4A.s3 - SIG5A.y) 
-						- wb5 * (SIG4A.s5 - SIG4A.s7);
-		data[clipThr+1] = SIG4A.s1 - wc5 * (SIG4A.s3 + SIG5A.y) 
-						- wa5 * (SIG4A.s5 + SIG4A.s7) 
-						- wd5 * (SIG4A.s2 - SIG5A.x) 
-						- wb5 * (SIG4A.s4 - SIG4A.s6);
-		data[clipFou+0] = SIG4A.s0 - wc5 * (SIG4A.s2 + SIG5A.x) 
-						- wa5 * (SIG4A.s4 + SIG4A.s6) 
-						- wd5 * (SIG4A.s3 - SIG5A.y) 
-						- wb5 * (SIG4A.s5 -SIG4A.s7); 
-		data[clipFou+1] = SIG4A.s1 - wc5 * (SIG4A.s3 + SIG5A.y) 
-						- wa5 * (SIG4A.s5 + SIG4A.s7) 
-						+ wd5 * (SIG4A.s2 - SIG5A.x) 
-						- wb5 * (SIG4A.s4 - SIG4A.s6);
-		data[clipFiv+0] = SIG4A.s0 + wa5 * (SIG4A.s2 + SIG5A.x) 
-						- wc5 * (SIG4A.s4 + SIG4A.s6) 
-						- wb5 * (SIG4A.s3 - SIG5A.y) 
-						+ wd5 * (SIG4A.s5 - SIG4A.s7);
-		data[clipFiv+1] = SIG4A.s1 + wa5 * (SIG4A.s3 + SIG5A.y) 
-						- wc5 * (SIG4A.s5 + SIG4A.s7) 
-						+ wb5 * (SIG4A.s2 - SIG5A.x) 
-						+ wd5 * (SIG4A.s4 - SIG4A.s6);
-	}
-	#endif //step2	
-#endif //extra
 }
-
 __kernel void DIT3C2C(
 			__global double *data, 
 			const int size,
@@ -2114,7 +2474,151 @@ __kernel void DIT5C2CM(	__global double *data,
 	data[clipFiv+1] = 555;//yIndex;
 	#endif
 }
+__kernel void DIT6C2CM(	__global double *data,
+						const int x, const int y,
+						unsigned int stage,
+						unsigned int dir,
+						unsigned int type) 
+{
+	int idX = get_global_id(0);
+	int idY = get_global_id(1);
 
+	//int powX = topePow(5.,stage,11);
+	int powX = topePowInt(6,stage);
+	int powXm1 = powX/6;
+	// x =pow(5.0,2)=25 whereas x=pow(5.0f,2)=24
+	
+	int clipOne, clipTwo, clipThr, clipFou, clipFiv,clipSix;
+	int BASE   = 0;
+	int STRIDE = 1;
+	int yIndex, kIndex;
+
+	switch(type)
+	{
+		case 0: BASE 		= idY*x; 
+				yIndex 		= idX / powXm1;
+				kIndex 		= idX % powXm1;
+				break;
+		case 1: BASE 		= idX; 
+				STRIDE 		= x; 
+				yIndex 		= idY / powXm1;
+				kIndex 		= idY % powXm1;
+				break;
+	}
+
+	clipOne 	= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 0 * powXm1));
+	clipTwo 	= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 1 * powXm1));
+	clipThr		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 2 * powXm1));
+	clipFou		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 3 * powXm1));
+	clipFiv		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 4 * powXm1));
+	clipSix		= 2 * (BASE+STRIDE*(kIndex + yIndex * powX + 5 * powXm1));
+
+	double2 TEMPC;
+	double8 SIG4A = (double8)(	data[clipOne+0],data[clipOne+1],
+					data[clipTwo+0],data[clipTwo+1],
+					data[clipThr+0],data[clipThr+1],
+					data[clipFou+0],data[clipFou+1]);
+	double2 SIG5A = (double2)(	data[clipFiv+0],data[clipFiv+1]);
+	double2 SIG6A = (double2)(	data[clipSix+0],data[clipSix+1]);
+
+	double2 clSet2, clSet3, clSet4, clSet5, clSet6, temp2;
+	
+	if (kIndex!=0) {
+		clSet2.x =  cos(CLPT*kIndex/powX);
+		clSet2.y = -sin(CLPT*kIndex/powX);
+		if (dir == 0) clSet2.y *= -1;
+		TEMPC.x = SIG4A.s2 * clSet2.x - SIG4A.s3 * clSet2.y;
+		TEMPC.y = SIG4A.s2 * clSet2.y + SIG4A.s3 * clSet2.x;
+		SIG4A.s2 = TEMPC.x;
+		SIG4A.s3 = TEMPC.y;
+		clSet3.x = cos(2*CLPT*kIndex/powX);
+		clSet3.y = -sin(2*CLPT*kIndex/powX);
+		if (dir == 0) clSet3.y *= -1;
+		TEMPC.x = SIG4A.s4 * clSet3.x - SIG4A.s5 * clSet3.y;
+		TEMPC.y = SIG4A.s4 * clSet3.y + SIG4A.s5 * clSet3.x;
+		SIG4A.s4 = TEMPC.x;
+		SIG4A.s5 = TEMPC.y;
+		clSet4.x = cos(3*CLPT*kIndex/powX);
+		clSet4.y = -sin(3*CLPT*kIndex/powX);
+		if (dir == 0) clSet4.y *= -1;
+		TEMPC.x = SIG4A.s6 * clSet4.x - SIG4A.s7 * clSet4.y;
+		TEMPC.y = SIG4A.s6 * clSet4.y + SIG4A.s7 * clSet4.x;
+		SIG4A.s6 = TEMPC.x;
+		SIG4A.s7 = TEMPC.y;
+		clSet5.x = cos(4*CLPT*kIndex/powX);
+		clSet5.y = -sin(4*CLPT*kIndex/powX);
+		if (dir == 0) clSet5.y *= -1;
+		TEMPC.x = SIG5A.x * clSet5.x - SIG5A.y * clSet5.y;
+		TEMPC.y = SIG5A.x * clSet5.y + SIG5A.y * clSet5.x;
+		SIG5A.x = TEMPC.x;
+		SIG5A.y = TEMPC.y;
+		
+		clSet6.x = cos(5*CLPT*kIndex/powX);
+		clSet6.y = -sin(5*CLPT*kIndex/powX);
+		if (dir == 0) clSet6.y *= -1;
+		TEMPC.x = SIG6A.x * clSet6.x - SIG6A.y * clSet6.y;
+		TEMPC.y = SIG6A.x * clSet6.y + SIG6A.y * clSet6.x;
+		SIG6A.x = TEMPC.x;
+		SIG6A.y = TEMPC.y;
+	
+	}	
+
+	data[clipOne+0] = SIG4A.s0 + SIG4A.s2 + SIG4A.s4 + SIG4A.s6 + SIG5A.x + SIG6A.x;
+	data[clipOne+1] = SIG4A.s1 + SIG4A.s3 + SIG4A.s5 + SIG4A.s7 + SIG5A.y + SIG6A.y;
+
+	data[clipTwo+0] = SIG4A.s0 + (wa6*SIG4A.s2 + wb6*SIG4A.s3) +
+					(-wa6*SIG4A.s4 + wb6*SIG4A.s5) + (-SIG4A.s6)+
+					(-wa6*SIG5A.x - wb6*SIG5A.y) + (wa6*SIG6A.x - wb6*SIG6A.y); 
+	data[clipTwo+1] = SIG4A.s1 + (wa6*SIG4A.s3 - wb6*SIG4A.s2) +
+					(-wa6*SIG4A.s5 - wb6*SIG4A.s4) + (-SIG4A.s7)+
+					(-wa6*SIG5A.y +	wb6*SIG5A.x) + (wa6*SIG6A.y + wb6*SIG6A.x);
+
+
+				
+	data[clipThr+0] = SIG4A.s0 + (-wa6*SIG4A.s2 + wb6*SIG4A.s3) +
+					(-wa6*SIG4A.s4 - wb6*SIG4A.s5) + (SIG4A.s6)+
+					(-wa6*SIG5A.x + wb6*SIG5A.y) + (-wa6*SIG6A.x - wb6*SIG6A.y); 
+	data[clipThr+1] = SIG4A.s1 + (-wa6*SIG4A.s3 - wb6*SIG4A.s2) +
+					(-wa6*SIG4A.s5 + wb6*SIG4A.s4) + (SIG4A.s7)+
+					(-wa6*SIG5A.y -	wb6*SIG5A.x) + (-wa6*SIG6A.y + wb6*SIG6A.x);
+
+	data[clipFou+0] = SIG4A.s0 + (-SIG4A.s2) + (SIG4A.s4) + (-SIG4A.s6) +
+					(SIG5A.x) + (-SIG6A.x);
+	data[clipFou+1] = SIG4A.s1 + (-SIG4A.s3) + (SIG4A.s5) + (-SIG4A.s7) +
+					(SIG5A.y) + (-SIG6A.y);
+
+	data[clipFiv+0] = SIG4A.s0 + (-wa6*SIG4A.s2 - wb6*SIG4A.s3) +
+					(-wa6*SIG4A.s4 + wb6*SIG4A.s5) + (SIG4A.s6)+
+					(-wa6*SIG5A.x - wb6*SIG5A.y) + (-wa6*SIG6A.x + wb6*SIG6A.y); 
+
+	data[clipFiv+1] = SIG4A.s1 + (-wa6*SIG4A.s3 + wb6*SIG4A.s2) +
+					(-wa6*SIG4A.s5 - wb6*SIG4A.s4) + (SIG4A.s7)+
+					(-wa6*SIG5A.y +	wb6*SIG5A.x) + (-wa6*SIG6A.y - wb6*SIG6A.x);
+
+	data[clipSix+0] = SIG4A.s0 + (wa6*SIG4A.s2 - wb6*SIG4A.s3) +
+					(-wa6*SIG4A.s4 - wb6*SIG4A.s5) + (-SIG4A.s6)+
+					(-wa6*SIG5A.x + wb6*SIG5A.y) + (wa6*SIG6A.x + wb6*SIG6A.y); 
+
+	data[clipSix+1] =  SIG4A.s1 + (wa6*SIG4A.s3 + wb6*SIG4A.s2) +
+					(-wa6*SIG4A.s5 + wb6*SIG4A.s4) + (-SIG4A.s7)+
+					(-wa6*SIG5A.y -	wb6*SIG5A.x) + (wa6*SIG6A.y - wb6*SIG6A.x);
+
+
+	#if 0 // Debug code
+	data[clipOne+0] = 11;//kIndex;
+	data[clipOne+1] = 111;//yIndex;
+	data[clipTwo+0] = 22;//kIndex;
+	data[clipTwo+1] = 222;//yIndex;
+	data[clipThr+0] = 33;//kIndex;
+	data[clipThr+1] = 333;//yIndex;
+	data[clipFou+0] = 44;//kIndex;
+	data[clipFou+1] = 444;//yIndex;
+	data[clipFiv+0] = 55;//kIndex;
+	data[clipFiv+1] = 555;//yIndex;
+	data[clipSix+0] = 66;
+	data[clipSix+1] = 666;
+	#endif
+}
 __kernel void DIT7C2CM(	__global double *data,
 						const int x, const int y,
 						unsigned int stage,
@@ -2124,7 +2628,8 @@ __kernel void DIT7C2CM(	__global double *data,
 	int idX = get_global_id(0);
 	int idY = get_global_id(1);
 
-	int powX = topePow(7.,stage,11);
+//	int powX = topePow(7.,stage,11);
+	int powX = topePowInt(7,stage);	
 	int powXm1 = powX/7;
 	
 	int clipOne, clipTwo, clipThr, clipFou, clipFiv, clipSix, clipSev;
@@ -2736,7 +3241,8 @@ __kernel void reversen( __global int *bitRev,
 	int tempRev = 0;
 	for( j = locX*logSize+logSize-1, i = 0; j >= locX*logSize; j--, i++)
 	{
-		tempRev += bitArray[j] * topePow(radix,i,5);
+		//tempRev += bitArray[j] * topePow(radix,i,5);
+		tempRev += bitArray[j] * topePowInt(radix,i);
 	}
 	bitRev[idX] = tempRev;
 	//data[1]=420;
