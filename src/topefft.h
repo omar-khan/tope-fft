@@ -1,14 +1,44 @@
 #include <CL/cl.h>
 #include <assert.h>
 
-#define MAX_BINARY_SIZE (0x100000) // Eq: 1Mb
-#define MAX_SOURCE_SIZE (0x100000) // Eq: 1Mb
+#define MAX_BINARY_SIZE (0x200000) // Eq: 1Mb
+#define MAX_SOURCE_SIZE (0x200000) // Eq: 1Mb
 #define $CHECKERROR assert (f->error == CL_SUCCESS);	
 
 #define C2C 1
 #define R2C 0
 #define FORWARD 1
 #define INVERSE 0
+
+#define $E 1e-15
+
+struct XtopePlan1D {
+	int length;
+	int *side;
+	int *bits;				// Max bits Required
+	int *log; 				// for butterfly stages
+	int type;				// C2C/R2C etc.	
+	int *radix;
+	cl_kernel *kernel;		// butterfly kernel
+	cl_kernel kernel_mulTW; // Used by Mix Kernel for multiplying with W
+	cl_kernel *kernel_bit;	// bit reversal kernel
+	cl_kernel kernel_swap;	// swapper kernel
+	cl_kernel kernel_twid;	// twiddle calculator
+	cl_kernel kernel_div;
+	cl_kernel kernel_tran2; // transpose2 kernel
+	cl_kernel kernel_copy;  // copy scratch to data
+	cl_mem data;			// main data
+	cl_mem *bitrev;			// bitreversal data
+	cl_mem twiddle;			// twiddles
+	cl_mem scratch;   		// Scratch space
+	size_t dataSize;		// size of data
+	cl_ulong totalMemory;		// profiling: mem transfers
+	cl_ulong totalPreKernel;	// profiling: before butterflies
+	cl_ulong totalKernel;		// profiling: butterflies
+	cl_uint dim;				// factors of data
+	size_t *globalSize;			// kernel dimensions setup
+	size_t *localSize;
+};
 
 struct topePlan1D {
 	int x;			// Length
@@ -23,6 +53,7 @@ struct topePlan1D {
 	cl_mem data;			// main data
 	cl_mem bitrev;			// bitreversal data
 	cl_mem twiddle;			// twiddles
+	cl_mem scratch;   		// Scratch space
 	size_t dataSize;		// size of data
 	cl_ulong totalMemory;		// profiling: mem transfers
 	cl_ulong totalPreKernel;	// profiling: before butterflies
